@@ -1,0 +1,1259 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>社内タスク管理</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400;600;700&family=Noto+Sans+JP:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0d1117;
+    --surface:   #161b22;
+    --panel:     #1c2330;
+    --border:    #2a3444;
+    --border2:   #3d4f63;
+    --accent:    #c0392b;
+    --accent2:   #e74c3c;
+    --gold:      #d4a843;
+    --gold2:     #f0c850;
+    --text:      #e8edf2;
+    --text2:     #8899aa;
+    --text3:     #5a6a7a;
+    --urgent:    #e74c3c;
+    --normal:    #3498db;
+    --deadline:  #f39c12;
+    --approve:   #27ae60;
+    --shadow:    0 4px 24px rgba(0,0,0,0.5);
+    --shadow2:   0 2px 8px rgba(0,0,0,0.3);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ─── ノイズオーバーレイ ─── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 0;
+  }
+
+  /* ─── ヘッダー ─── */
+  header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(13,17,23,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 64px;
+  }
+
+  .logo {
+    font-family: 'Noto Serif JP', serif;
+    font-size: 1.1rem; font-weight: 600;
+    letter-spacing: 0.15em;
+    color: var(--text);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .logo-mark {
+    width: 28px; height: 28px;
+    background: var(--accent);
+    clip-path: polygon(0 0, 100% 0, 100% 70%, 70% 100%, 0 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.7rem; color: #fff; font-weight: 700;
+    letter-spacing: 0;
+  }
+
+  .header-right {
+    display: flex; align-items: center; gap: 1rem;
+  }
+
+  .user-select-wrap {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-size: 0.8rem; color: var(--text2);
+  }
+  .user-select-wrap select {
+    background: none; border: none; color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 0.85rem; cursor: pointer; outline: none;
+  }
+  .user-select-wrap select option { background: var(--surface); }
+
+  .notif-btn {
+    position: relative;
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text2); cursor: pointer; border-radius: 4px;
+    width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+  .notif-btn:hover { border-color: var(--gold); color: var(--gold); }
+  .notif-badge {
+    position: absolute; top: -4px; right: -4px;
+    background: var(--accent); color: #fff;
+    font-size: 0.6rem; width: 16px; height: 16px;
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-weight: 700; border: 2px solid var(--bg);
+  }
+
+  .add-task-btn {
+    background: var(--accent); color: #fff; border: none;
+    padding: 8px 18px; border-radius: 4px; cursor: pointer;
+    font-family: 'Noto Sans JP', sans-serif; font-size: 0.82rem;
+    font-weight: 500; letter-spacing: 0.05em;
+    display: flex; align-items: center; gap: 6px;
+    transition: all 0.2s;
+  }
+  .add-task-btn:hover { background: var(--accent2); transform: translateY(-1px); }
+
+  /* ─── 通知パネル ─── */
+  #notif-panel {
+    position: fixed; top: 64px; right: 1rem;
+    width: 320px; max-height: 480px; overflow-y: auto;
+    background: var(--panel); border: 1px solid var(--border2);
+    border-radius: 8px; box-shadow: var(--shadow);
+    z-index: 200; display: none;
+    animation: slideDown 0.2s ease;
+  }
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  #notif-panel.open { display: block; }
+  .notif-header {
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    font-size: 0.78rem; color: var(--text2); letter-spacing: 0.08em;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .notif-clear { background: none; border: none; color: var(--text3); font-size: 0.72rem; cursor: pointer; }
+  .notif-clear:hover { color: var(--accent); }
+  .notif-item {
+    padding: 10px 16px; border-bottom: 1px solid var(--border);
+    font-size: 0.78rem; line-height: 1.5;
+    animation: fadeIn 0.3s ease;
+  }
+  .notif-item:last-child { border-bottom: none; }
+  .notif-item.unread { background: rgba(196,57,43,0.06); }
+  .notif-time { font-size: 0.68rem; color: var(--text3); margin-top: 3px; }
+  .notif-empty { padding: 24px 16px; text-align: center; color: var(--text3); font-size: 0.8rem; }
+
+  /* ─── メインレイアウト ─── */
+  .main-wrap {
+    position: relative; z-index: 1;
+    max-width: 1600px; margin: 0 auto;
+    padding: 1.5rem 1.5rem 4rem;
+  }
+
+  .section-title {
+    font-family: 'Noto Serif JP', serif;
+    font-size: 0.72rem; font-weight: 400;
+    letter-spacing: 0.2em; color: var(--text3);
+    text-transform: uppercase;
+    padding: 0 0 1rem;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .section-title::after {
+    content: ''; flex: 1; height: 1px; background: var(--border);
+  }
+
+  /* ─── タブ ─── */
+  .view-tabs {
+    display: flex; gap: 4px; margin-bottom: 1.5rem;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 4px;
+    width: fit-content;
+  }
+  .view-tab {
+    padding: 6px 16px; border-radius: 4px; cursor: pointer;
+    font-size: 0.78rem; color: var(--text2); border: none; background: none;
+    font-family: 'Noto Sans JP', sans-serif;
+    transition: all 0.2s; letter-spacing: 0.05em;
+  }
+  .view-tab.active { background: var(--panel); color: var(--text); border: 1px solid var(--border2); }
+
+  /* ─── スタッフグリッド ─── */
+  #staff-view {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 1.2rem;
+  }
+
+  .staff-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+    animation: fadeIn 0.4s ease both;
+  }
+  .staff-box:hover { border-color: var(--border2); }
+
+  .staff-header {
+    padding: 14px 16px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .staff-name-wrap {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .staff-avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'DM Mono', monospace; font-size: 0.75rem; font-weight: 500;
+    color: #fff; flex-shrink: 0;
+  }
+  .staff-name {
+    font-size: 0.9rem; font-weight: 500;
+    letter-spacing: 0.05em;
+  }
+  .staff-role {
+    font-size: 0.68rem; color: var(--text3); margin-top: 1px;
+  }
+  .staff-counts {
+    display: flex; gap: 6px; align-items: center;
+  }
+  .count-chip {
+    font-size: 0.65rem; padding: 2px 7px; border-radius: 10px;
+    font-family: 'DM Mono', monospace; font-weight: 500;
+  }
+  .count-active { background: rgba(52,152,219,0.15); color: #5dade2; border: 1px solid rgba(52,152,219,0.3); }
+  .count-review { background: rgba(212,168,67,0.15); color: var(--gold); border: 1px solid rgba(212,168,67,0.3); }
+  .count-done   { background: rgba(39,174,96,0.15); color: #58d68d; border: 1px solid rgba(39,174,96,0.3); }
+
+  .staff-tasks { padding: 10px; min-height: 60px; }
+  .staff-tasks.approval-zone {
+    background: repeating-linear-gradient(
+      45deg, transparent, transparent 8px,
+      rgba(212,168,67,0.03) 8px, rgba(212,168,67,0.03) 16px
+    );
+  }
+  .zone-label {
+    font-size: 0.65rem; color: var(--text3); letter-spacing: 0.12em;
+    padding: 4px 6px 8px;
+  }
+
+  /* ─── タスクカード ─── */
+  .task-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+    animation: fadeIn 0.3s ease;
+  }
+  .task-card::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+    width: 3px;
+  }
+  .task-card.priority-urgent::before { background: var(--urgent); }
+  .task-card.priority-normal::before { background: var(--normal); }
+  .task-card.priority-deadline::before { background: var(--deadline); }
+  .task-card.status-review::before { background: var(--gold); }
+
+  .task-card:hover {
+    border-color: var(--border2);
+    transform: translateX(2px);
+    box-shadow: var(--shadow2);
+  }
+  .task-card.overdue { border-color: rgba(231,76,60,0.4); }
+  .task-card.today   { border-color: rgba(243,156,18,0.4); }
+
+  .task-top {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 8px; margin-bottom: 6px;
+  }
+  .task-title {
+    font-size: 0.85rem; font-weight: 500; line-height: 1.4;
+    flex: 1;
+  }
+  .priority-badge {
+    font-size: 0.6rem; padding: 2px 7px; border-radius: 3px;
+    font-weight: 700; letter-spacing: 0.08em; white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .pb-urgent   { background: rgba(231,76,60,0.2);  color: #ff6b5b; border: 1px solid rgba(231,76,60,0.4); }
+  .pb-normal   { background: rgba(52,152,219,0.2); color: #7fb3d3; border: 1px solid rgba(52,152,219,0.4); }
+  .pb-deadline { background: rgba(243,156,18,0.2); color: #f5b041; border: 1px solid rgba(243,156,18,0.4); }
+
+  .task-meta {
+    display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+    font-size: 0.68rem; color: var(--text3);
+  }
+  .meta-item { display: flex; align-items: center; gap: 3px; }
+  .meta-item svg { width: 10px; height: 10px; }
+  .meta-deadline.is-overdue { color: var(--urgent); }
+  .meta-deadline.is-today   { color: var(--deadline); }
+
+  .task-actions {
+    display: flex; gap: 5px; margin-top: 9px; padding-top: 9px;
+    border-top: 1px solid var(--border);
+  }
+  .task-btn {
+    flex: 1; padding: 5px 8px; border-radius: 3px; cursor: pointer;
+    font-size: 0.7rem; font-family: 'Noto Sans JP', sans-serif;
+    font-weight: 500; letter-spacing: 0.04em;
+    border: 1px solid transparent; transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center; gap: 4px;
+  }
+  .btn-complete { background: rgba(39,174,96,0.15); color: #58d68d; border-color: rgba(39,174,96,0.3); }
+  .btn-complete:hover { background: rgba(39,174,96,0.3); }
+  .btn-approve  { background: rgba(212,168,67,0.15); color: var(--gold); border-color: rgba(212,168,67,0.3); }
+  .btn-approve:hover  { background: rgba(212,168,67,0.3); }
+  .btn-reject   { background: rgba(231,76,60,0.15); color: #ff6b5b; border-color: rgba(231,76,60,0.3); }
+  .btn-reject:hover   { background: rgba(231,76,60,0.3); }
+  .btn-delete   { background: rgba(100,100,120,0.15); color: var(--text3); border-color: var(--border); }
+  .btn-delete:hover   { background: rgba(231,76,60,0.15); color: #ff6b5b; border-color: rgba(231,76,60,0.3); }
+  .btn-edit     { background: rgba(52,152,219,0.1); color: #7fb3d3; border-color: rgba(52,152,219,0.3); }
+  .btn-edit:hover     { background: rgba(52,152,219,0.25); }
+
+  .review-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 0.62rem; color: var(--gold); background: rgba(212,168,67,0.1);
+    border: 1px solid rgba(212,168,67,0.3); border-radius: 3px;
+    padding: 2px 7px;
+  }
+
+  /* ─── 期限ビュー ─── */
+  #deadline-view { display: none; }
+  .deadline-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem;
+  }
+  .deadline-col { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .deadline-col-header {
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    font-size: 0.75rem; letter-spacing: 0.12em; font-weight: 500;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .deadline-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .col-overdue .deadline-dot  { background: var(--urgent); }
+  .col-today .deadline-dot    { background: var(--deadline); }
+  .col-week .deadline-dot     { background: var(--normal); }
+  .col-later .deadline-dot    { background: var(--text3); }
+  .col-overdue .deadline-col-header { color: #ff6b5b; }
+  .col-today .deadline-col-header   { color: #f5b041; }
+  .col-week .deadline-col-header    { color: #7fb3d3; }
+  .col-later .deadline-col-header   { color: var(--text2); }
+  .deadline-tasks { padding: 10px; }
+
+  /* ─── 承認ビュー ─── */
+  #approval-view { display: none; }
+  .approval-list { max-width: 780px; }
+  .approval-item {
+    background: var(--surface); border: 1px solid var(--border2);
+    border-left: 3px solid var(--gold);
+    border-radius: 8px; padding: 16px 20px; margin-bottom: 12px;
+    display: flex; align-items: flex-start; gap: 16px;
+    animation: fadeIn 0.3s ease;
+  }
+  .approval-info { flex: 1; }
+  .approval-title { font-size: 0.92rem; font-weight: 500; margin-bottom: 6px; }
+  .approval-meta  { font-size: 0.72rem; color: var(--text2); display: flex; gap: 12px; flex-wrap: wrap; }
+  .approval-actions { display: flex; gap: 8px; flex-shrink: 0; align-items: center; }
+
+  /* ─── モーダル ─── */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+    z-index: 500; display: none; align-items: center; justify-content: center;
+    animation: fadeIn 0.2s ease;
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--panel);
+    border: 1px solid var(--border2);
+    border-radius: 10px;
+    width: 100%; max-width: 480px;
+    padding: 28px 32px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    animation: slideUp 0.25s ease;
+    position: relative;
+  }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .modal-title {
+    font-family: 'Noto Serif JP', serif;
+    font-size: 1.05rem; font-weight: 600;
+    letter-spacing: 0.08em; margin-bottom: 20px;
+    padding-bottom: 12px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .modal-title-bar {
+    width: 4px; height: 18px; background: var(--accent); border-radius: 2px;
+  }
+
+  .form-row { margin-bottom: 16px; }
+  .form-label {
+    display: block; font-size: 0.72rem; color: var(--text2);
+    letter-spacing: 0.1em; margin-bottom: 6px; font-weight: 500;
+  }
+  .form-input, .form-select, .form-textarea {
+    width: 100%; background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); border-radius: 4px; padding: 9px 12px;
+    font-family: 'Noto Sans JP', sans-serif; font-size: 0.85rem;
+    outline: none; transition: border-color 0.2s;
+  }
+  .form-input:focus, .form-select:focus, .form-textarea:focus {
+    border-color: var(--border2);
+  }
+  .form-select option { background: var(--surface); }
+  .form-textarea { resize: vertical; min-height: 80px; }
+
+  .form-row-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .form-actions {
+    display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px;
+    padding-top: 16px; border-top: 1px solid var(--border);
+  }
+  .btn-cancel {
+    padding: 9px 20px; border-radius: 4px; cursor: pointer;
+    background: none; border: 1px solid var(--border); color: var(--text2);
+    font-family: 'Noto Sans JP', sans-serif; font-size: 0.82rem;
+    transition: all 0.2s;
+  }
+  .btn-cancel:hover { border-color: var(--border2); color: var(--text); }
+  .btn-submit {
+    padding: 9px 24px; border-radius: 4px; cursor: pointer;
+    background: var(--accent); border: none; color: #fff;
+    font-family: 'Noto Sans JP', sans-serif; font-size: 0.82rem; font-weight: 500;
+    transition: all 0.2s;
+  }
+  .btn-submit:hover { background: var(--accent2); }
+
+  .modal-close {
+    position: absolute; top: 16px; right: 16px;
+    background: none; border: none; color: var(--text3); cursor: pointer;
+    font-size: 1.2rem; transition: color 0.2s; padding: 4px;
+  }
+  .modal-close:hover { color: var(--text); }
+
+  /* ─── トーストアラート ─── */
+  #toast-container {
+    position: fixed; bottom: 1.5rem; right: 1.5rem;
+    z-index: 1000; display: flex; flex-direction: column; gap: 8px;
+  }
+  .toast {
+    background: var(--panel); border: 1px solid var(--border2);
+    border-radius: 6px; padding: 12px 16px;
+    font-size: 0.78rem; max-width: 320px;
+    display: flex; align-items: center; gap: 10px;
+    box-shadow: var(--shadow);
+    animation: toastIn 0.3s ease;
+  }
+  @keyframes toastIn {
+    from { opacity: 0; transform: translateX(20px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  .toast-icon { font-size: 1rem; flex-shrink: 0; }
+  .toast.success { border-left: 3px solid var(--approve); }
+  .toast.warning { border-left: 3px solid var(--deadline); }
+  .toast.error   { border-left: 3px solid var(--urgent); }
+  .toast.info    { border-left: 3px solid var(--normal); }
+
+  /* ─── 締め切りアラートバナー ─── */
+  #deadline-banner {
+    background: rgba(243,156,18,0.1); border: 1px solid rgba(243,156,18,0.3);
+    border-radius: 6px; padding: 10px 16px; margin-bottom: 1rem;
+    font-size: 0.78rem; color: var(--deadline);
+    display: none; align-items: center; gap: 8px;
+  }
+  #deadline-banner.show { display: flex; }
+
+  /* ─── その他 ─── */
+  @keyframes fadeIn {
+    from { opacity: 0; } to { opacity: 1; }
+  }
+  .empty-state {
+    text-align: center; padding: 24px 16px;
+    color: var(--text3); font-size: 0.75rem; letter-spacing: 0.08em;
+  }
+
+  /* ─── カレンダー入力 ─── */
+.date-picker {
+  cursor: pointer;
+  color-scheme: dark;
+}
+.date-picker::-webkit-calendar-picker-indicator {
+  filter: invert(0.6) sepia(1) saturate(3) hue-rotate(180deg);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 3px;
+  transition: filter 0.2s;
+}
+.date-picker::-webkit-calendar-picker-indicator:hover {
+  filter: invert(0.8) sepia(1) saturate(5) hue-rotate(160deg) brightness(1.3);
+}
+
+/* スクロールバー */
+::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  /* 期限インジケーター */
+  .deadline-ring {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'DM Mono', monospace; font-size: 0.55rem; font-weight: 500;
+    border: 2px solid;
+  }
+  .dr-overdue { border-color: var(--urgent);   color: var(--urgent);   background: rgba(231,76,60,0.1); }
+  .dr-today   { border-color: var(--deadline); color: var(--deadline); background: rgba(243,156,18,0.1); }
+  .dr-soon    { border-color: var(--normal);   color: var(--normal);   background: rgba(52,152,219,0.1); }
+  .dr-later   { border-color: var(--border2);  color: var(--text3);    background: none; }
+
+  /* 確認ダイアログ */
+  .confirm-modal { max-width: 360px; }
+  .confirm-msg { font-size: 0.85rem; color: var(--text2); line-height: 1.7; margin-bottom: 6px; }
+</style>
+</head>
+<body>
+
+<!-- ヘッダー -->
+<header>
+  <div class="logo">
+    <div class="logo-mark">TM</div>
+    <span>タスク管理</span>
+  </div>
+  <div class="header-right">
+    <div class="user-select-wrap">
+      <span>ログイン中：</span>
+      <select id="current-user-select" onchange="changeCurrentUser(this.value)"></select>
+    </div>
+    <button class="notif-btn" onclick="toggleNotifPanel()" title="通知">
+      🔔
+      <span class="notif-badge" id="notif-badge" style="display:none">0</span>
+    </button>
+    <button class="add-task-btn" onclick="openAddModal()">
+      ＋ タスク追加
+    </button>
+  </div>
+</header>
+
+<!-- 通知パネル -->
+<div id="notif-panel">
+  <div class="notif-header">
+    <span>通知</span>
+    <button class="notif-clear" onclick="clearNotifications()">すべて消去</button>
+  </div>
+  <div id="notif-list"></div>
+</div>
+
+<!-- メイン -->
+<div class="main-wrap">
+
+  <!-- 締め切りアラートバナー -->
+  <div id="deadline-banner"></div>
+
+  <!-- ビュー切替タブ -->
+  <div class="view-tabs">
+    <button class="view-tab active" onclick="switchView('staff',this)">スタッフ別</button>
+    <button class="view-tab" onclick="switchView('deadline',this)">締め切り順</button>
+    <button class="view-tab" onclick="switchView('approval',this)">承認待ち</button>
+  </div>
+
+  <!-- スタッフビュー -->
+  <div id="staff-view"></div>
+
+  <!-- 期限ビュー -->
+  <div id="deadline-view">
+    <p class="section-title">締め切り別タスク一覧</p>
+    <div class="deadline-grid">
+      <div class="deadline-col col-overdue">
+        <div class="deadline-col-header"><span class="deadline-dot"></span>期限超過</div>
+        <div class="deadline-tasks" id="dl-overdue"></div>
+      </div>
+      <div class="deadline-col col-today">
+        <div class="deadline-col-header"><span class="deadline-dot"></span>本日締め切り</div>
+        <div class="deadline-tasks" id="dl-today"></div>
+      </div>
+      <div class="deadline-col col-week">
+        <div class="deadline-col-header"><span class="deadline-dot"></span>今週中</div>
+        <div class="deadline-tasks" id="dl-week"></div>
+      </div>
+      <div class="deadline-col col-later">
+        <div class="deadline-col-header"><span class="deadline-dot"></span>それ以降</div>
+        <div class="deadline-tasks" id="dl-later"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 承認ビュー -->
+  <div id="approval-view">
+    <p class="section-title">承認待ちタスク</p>
+    <div class="approval-list" id="approval-list"></div>
+  </div>
+</div>
+
+<!-- タスク追加/編集モーダル -->
+<div class="modal-overlay" id="task-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeTaskModal()">✕</button>
+    <div class="modal-title">
+      <div class="modal-title-bar"></div>
+      <span id="modal-title-text">タスクを追加</span>
+    </div>
+    <div class="form-row">
+      <label class="form-label">タイトル <span style="color:var(--accent)">*</span></label>
+      <input class="form-input" id="f-title" type="text" placeholder="タスクの内容を入力…">
+    </div>
+    
+    <div class="form-row">
+  <label class="form-label">担当者 <span style="color:var(--accent)">*</span></label>
+  <select class="form-select" id="f-assignee"></select>
+</div>
+
+    <div class="form-row-grid">
+      <div class="form-row">
+        <label class="form-label">優先度</label>
+        <select class="form-select" id="f-priority">
+          <option value="normal">通常</option>
+          <option value="urgent">至急</option>
+          <option value="deadline">期限あり</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-label">期限日</label>
+        <input class="form-input date-picker" id="f-deadline" type="date" min="">
+      </div>
+    </div>
+    <div class="form-row">
+      <label class="form-label">メモ</label>
+      <textarea class="form-textarea" id="f-note" placeholder="補足・詳細など…"></textarea>
+    </div>
+    <div class="form-actions">
+      <button class="btn-cancel" onclick="closeTaskModal()">キャンセル</button>
+      <button class="btn-submit" onclick="submitTask()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 確認ダイアログ -->
+<div class="modal-overlay" id="confirm-modal">
+  <div class="modal confirm-modal">
+    <div class="modal-title">
+      <div class="modal-title-bar" style="background:var(--urgent)"></div>
+      <span id="confirm-title">確認</span>
+    </div>
+    <p class="confirm-msg" id="confirm-msg"></p>
+    <div class="form-actions">
+      <button class="btn-cancel" onclick="closeConfirm()">キャンセル</button>
+      <button class="btn-submit" id="confirm-ok" style="background:var(--urgent)">実行</button>
+    </div>
+  </div>
+</div>
+
+<!-- トーストコンテナ -->
+<div id="toast-container"></div>
+
+<script>
+/* ═══════════════════════════════════════════
+   データ定義
+═══════════════════════════════════════════ */
+const STAFF_COLORS = [
+  '#e74c3c','#e67e22','#f1c40f','#2ecc71',
+  '#1abc9c','#3498db','#9b59b6','#e91e63','#00bcd4','#ff5722'
+];
+
+let state = loadState();
+
+function defaultState() {
+  const today = new Date();
+  const fmt = d => d.toISOString().split('T')[0];
+  const add = (n) => { let d=new Date(today); d.setDate(d.getDate()+n); return fmt(d); };
+
+  return {
+    currentUser: '山田 太郎',
+    staff: [
+      { id: 's1', name: '成瀬 陽太' },
+      { id: 's2', name: '佐藤 花子'},
+      { id: 's3', name: '鈴木 一郎' },
+      { id: 's4', name: '田中 美咲' },
+      { id: 's5', name: '伊藤 健太' },
+    ],
+    tasks: [
+      { id:'t1', title:'月次報告書の作成', assignee:'s2', requester:'s1', priority:'deadline',
+        deadline: add(2), approver:'s1', status:'active', note:'先月比のデータを含める', createdAt: fmt(today) },
+      { id:'t2', title:'取引先へのメール返信', assignee:'s3', requester:'s2', priority:'urgent',
+        deadline: add(0), approver:'s2', status:'active', note:'', createdAt: fmt(today) },
+      { id:'t3', title:'備品の発注確認', assignee:'s4', requester:'s1', priority:'normal',
+        deadline: add(5), approver:'', status:'active', note:'文具・トナー', createdAt: fmt(today) },
+      { id:'t4', title:'社内研修資料の更新', assignee:'s1', requester:'s1', priority:'deadline',
+        deadline: add(-1), approver:'s1', status:'active', note:'', createdAt: fmt(today) },
+      { id:'t5', title:'予算報告スライド準備', assignee:'s5', requester:'s1', priority:'deadline',
+        deadline: add(1), approver:'s1', status:'review', note:'来週の会議用', createdAt: fmt(today) },
+    ],
+    notifications: []
+  };
+}
+
+function loadState() {
+  try {
+    const s = localStorage.getItem('taskManager_v2');
+    return s ? JSON.parse(s) : defaultState();
+  } catch(e) { return defaultState(); }
+}
+function saveState() {
+  localStorage.setItem('taskManager_v2', JSON.stringify(state));
+}
+
+/* ═══════════════════════════════════════════
+   ユーティリティ
+═══════════════════════════════════════════ */
+function genId() { return 't' + Date.now() + Math.random().toString(36).slice(2,6); }
+function today() { return new Date().toISOString().split('T')[0]; }
+function staffById(id) { return state.staff.find(s=>s.id===id); }
+function staffInitial(name) { return name ? name.charAt(0) : '?'; }
+function staffColor(id) {
+  const idx = state.staff.findIndex(s=>s.id===id);
+  return STAFF_COLORS[idx % STAFF_COLORS.length];
+}
+function currentStaff() {
+  return state.staff.find(s=>s.name===state.currentUser) || state.staff[0];
+}
+function deadlineStatus(deadline) {
+  if (!deadline) return null;
+  const t = today();
+  if (deadline < t) return 'overdue';
+  if (deadline === t) return 'today';
+  const diff = (new Date(deadline) - new Date(t)) / 86400000;
+  if (diff <= 7) return 'soon';
+  return 'later';
+}
+function deadlineLabel(deadline) {
+  if (!deadline) return '';
+  const t = today();
+  if (deadline < t) {
+    const d = Math.round((new Date(t)-new Date(deadline))/86400000);
+    return `${d}日超過`;
+  }
+  if (deadline === t) return '本日';
+  const diff = Math.round((new Date(deadline)-new Date(t))/86400000);
+  return `${diff}日後`;
+}
+function fmtDate(d) {
+  if (!d) return '';
+  const [y,m,dd] = d.split('-');
+  return `${m}/${dd}`;
+}
+function priorityLabel(p) {
+  return { urgent:'至急', normal:'普通', deadline:'期限' }[p] || p;
+}
+function priorityClass(p) {
+  return { urgent:'pb-urgent', normal:'pb-normal', deadline:'pb-deadline' }[p] || '';
+}
+
+/* ═══════════════════════════════════════════
+   通知
+═══════════════════════════════════════════ */
+function addNotification(msg, type='info') {
+  const n = { id: Date.now(), msg, type, time: new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}), read: false };
+  state.notifications.unshift(n);
+  if (state.notifications.length > 30) state.notifications = state.notifications.slice(0,30);
+  saveState();
+  renderNotifBadge();
+  showToast(msg, type);
+}
+
+function renderNotifBadge() {
+  const unread = state.notifications.filter(n=>!n.read).length;
+  const badge = document.getElementById('notif-badge');
+  if (unread > 0) { badge.textContent = unread > 9 ? '9+' : unread; badge.style.display = 'flex'; }
+  else { badge.style.display = 'none'; }
+}
+
+function renderNotifPanel() {
+  const list = document.getElementById('notif-list');
+  if (!state.notifications.length) {
+    list.innerHTML = '<div class="notif-empty">通知はありません</div>'; return;
+  }
+  list.innerHTML = state.notifications.map(n => `
+    <div class="notif-item ${n.read?'':'unread'}">
+      <div>${n.msg}</div>
+      <div class="notif-time">${n.time}</div>
+    </div>
+  `).join('');
+}
+
+function toggleNotifPanel() {
+  const panel = document.getElementById('notif-panel');
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open')) {
+    state.notifications.forEach(n=>n.read=true);
+    saveState();
+    renderNotifBadge();
+    renderNotifPanel();
+  }
+}
+
+function clearNotifications() {
+  state.notifications = [];
+  saveState();
+  renderNotifBadge();
+  renderNotifPanel();
+}
+
+function showToast(msg, type='info') {
+  const icon = { success:'✅', warning:'⚠️', error:'❌', info:'ℹ️' }[type] || 'ℹ️';
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span class="toast-icon">${icon}</span><span>${msg}</span>`;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => { el.style.opacity='0'; el.style.transition='opacity 0.4s'; setTimeout(()=>el.remove(),400); }, 3500);
+}
+
+/* ═══════════════════════════════════════════
+   締め切りアラート
+═══════════════════════════════════════════ */
+function checkDeadlineAlerts() {
+  const me = currentStaff();
+  const myTasks = state.tasks.filter(t=>t.assignee===me.id && t.status==='active');
+  const overdue = myTasks.filter(t=>t.deadline && t.deadline < today());
+  const todayTasks = myTasks.filter(t=>t.deadline===today());
+  const banner = document.getElementById('deadline-banner');
+  const msgs = [];
+  if (overdue.length) msgs.push(`⚠️ 期限超過 ${overdue.length}件`);
+  if (todayTasks.length) msgs.push(`🔔 本日締め切り ${todayTasks.length}件`);
+  if (msgs.length) {
+    banner.innerHTML = msgs.join('　　') + `　— あなたのタスクをご確認ください`;
+    banner.classList.add('show');
+  } else {
+    banner.classList.remove('show');
+  }
+}
+
+/* ═══════════════════════════════════════════
+   スタッフビュー
+═══════════════════════════════════════════ */
+function renderStaffView() {
+  const container = document.getElementById('staff-view');
+  container.innerHTML = state.staff.map((s,i) => {
+    const active  = state.tasks.filter(t=>t.assignee===s.id && t.status==='active');
+    const review  = state.tasks.filter(t=>t.approver===s.id && t.status==='review');
+    const color   = STAFF_COLORS[i % STAFF_COLORS.length];
+    return `
+    <div class="staff-box" style="animation-delay:${i*0.05}s">
+      <div class="staff-header">
+        <div class="staff-name-wrap">
+          <div class="staff-avatar" style="background:${color}">${staffInitial(s.name)}</div>
+          <div>
+            <div class="staff-name">${s.name}</div>
+            <div class="staff-role">${s.role}</div>
+          </div>
+        </div>
+        <div class="staff-counts">
+          <span class="count-chip count-active">${active.length}</span>
+          ${review.length ? `<span class="count-chip count-review">${review.length}承認待</span>` : ''}
+        </div>
+      </div>
+      <div class="staff-tasks">
+        ${active.length
+          ? active.map(t=>renderTaskCard(t,s,'active')).join('')
+          : '<div class="empty-state">タスクなし</div>'}
+      </div>
+      ${review.length ? `
+      <div class="staff-tasks approval-zone">
+        <div class="zone-label">▸ 承認待ちタスク（承認者：${s.name}）</div>
+        ${review.map(t=>renderTaskCard(t,s,'review')).join('')}
+      </div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function renderTaskCard(t, staffContext, zone) {
+  const dl = deadlineStatus(t.deadline);
+  const dlLabel = deadlineLabel(t.deadline);
+  const requester = staffById(t.requester);
+  const approver  = staffById(t.approver);
+  const isApprover = currentStaff().id === t.approver;
+  const isAssignee = currentStaff().id === t.assignee;
+
+  let dlClass = '';
+  if (dl==='overdue') dlClass='overdue';
+  if (dl==='today')   dlClass='today';
+
+  const dlRingClass = {overdue:'dr-overdue',today:'dr-today',soon:'dr-soon',later:'dr-later'}[dl]||'dr-later';
+
+  let actions = '';
+  if (zone==='active') {
+    if (isAssignee) {
+      actions += `<button class="task-btn btn-complete" onclick="event.stopPropagation();completeTask('${t.id}')">✓ 完了報告</button>`;
+    }
+    actions += `<button class="task-btn btn-edit" onclick="event.stopPropagation();openEditModal('${t.id}')">編集</button>`;
+    actions += `<button class="task-btn btn-delete" onclick="event.stopPropagation();confirmDelete('${t.id}')">削除</button>`;
+  } else if (zone==='review') {
+    if (isApprover) {
+      actions += `<button class="task-btn btn-approve" onclick="event.stopPropagation();approveTask('${t.id}')">✓ 承認・完了</button>`;
+      actions += `<button class="task-btn btn-reject" onclick="event.stopPropagation();rejectTask('${t.id}')">↩ 差し戻し</button>`;
+    } else {
+      actions = `<span style="font-size:0.68rem;color:var(--text3)">承認者：${approver?.name||'未設定'} が対応</span>`;
+    }
+  }
+
+  return `
+  <div class="task-card priority-${t.priority} ${zone==='review'?'status-review':''} ${dlClass}">
+    <div class="task-top">
+      <div class="task-title">${t.title}</div>
+      <span class="priority-badge ${priorityClass(t.priority)}">${priorityLabel(t.priority)}</span>
+    </div>
+    <div class="task-meta">
+      ${requester ? `<span class="meta-item">👤 依頼：${requester.name}</span>` : ''}
+      ${t.deadline ? `
+        <span class="meta-item meta-deadline ${dl==='overdue'?'is-overdue':''} ${dl==='today'?'is-today':''}">
+          📅 ${fmtDate(t.deadline)}（${dlLabel}）
+        </span>` : ''}
+      ${approver && zone!=='review' ? `<span class="meta-item">🔍 承認：${approver.name}</span>` : ''}
+      ${zone==='review' ? `<span class="review-badge">⏳ 承認待ち</span>` : ''}
+    </div>
+    ${t.note ? `<div style="font-size:0.7rem;color:var(--text3);margin-top:5px;padding-left:2px">${t.note}</div>` : ''}
+    ${actions ? `<div class="task-actions">${actions}</div>` : ''}
+  </div>`;
+}
+
+/* ═══════════════════════════════════════════
+   締め切りビュー
+═══════════════════════════════════════════ */
+function renderDeadlineView() {
+  const active = state.tasks.filter(t=>t.status!=='done');
+  const buckets = { overdue:[], today:[], week:[], later:[] };
+
+  active.forEach(t => {
+    if (!t.deadline) { buckets.later.push(t); return; }
+    const s = deadlineStatus(t.deadline);
+    if (s==='overdue') buckets.overdue.push(t);
+    else if (s==='today') buckets.today.push(t);
+    else if (s==='soon') buckets.week.push(t);
+    else buckets.later.push(t);
+  });
+
+  const renderBucket = (tasks, id) => {
+    const el = document.getElementById(id);
+    if (!tasks.length) { el.innerHTML = '<div class="empty-state">なし</div>'; return; }
+    el.innerHTML = tasks.map(t => {
+      const s = staffById(t.assignee);
+      return `
+      <div class="task-card priority-${t.priority}" style="cursor:default">
+        <div class="task-top">
+          <div class="task-title">${t.title}</div>
+          <span class="priority-badge ${priorityClass(t.priority)}">${priorityLabel(t.priority)}</span>
+        </div>
+        <div class="task-meta">
+          ${s ? `<span class="meta-item">👤 ${s.name}</span>` : ''}
+          ${t.deadline ? `<span class="meta-item">📅 ${fmtDate(t.deadline)}</span>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  };
+
+  renderBucket(buckets.overdue, 'dl-overdue');
+  renderBucket(buckets.today,   'dl-today');
+  renderBucket(buckets.week,    'dl-week');
+  renderBucket(buckets.later,   'dl-later');
+}
+
+/* ═══════════════════════════════════════════
+   承認ビュー
+═══════════════════════════════════════════ */
+function renderApprovalView() {
+  const list = document.getElementById('approval-list');
+  const me = currentStaff();
+  const pending = state.tasks.filter(t=>t.status==='review' && t.approver===me.id);
+  if (!pending.length) {
+    list.innerHTML = '<div class="empty-state" style="padding:40px">承認待ちタスクはありません</div>';
+    return;
+  }
+  list.innerHTML = pending.map(t => {
+    const assignee  = staffById(t.assignee);
+    const requester = staffById(t.requester);
+    return `
+    <div class="approval-item">
+      <div class="approval-info">
+        <div class="approval-title">${t.title}</div>
+        <div class="approval-meta">
+          <span>担当：${assignee?.name||'不明'}</span>
+          <span>依頼：${requester?.name||'不明'}</span>
+          ${t.deadline ? `<span>期限：${fmtDate(t.deadline)}</span>` : ''}
+          <span class="priority-badge ${priorityClass(t.priority)}">${priorityLabel(t.priority)}</span>
+        </div>
+        ${t.note ? `<div style="font-size:0.72rem;color:var(--text2);margin-top:6px">${t.note}</div>` : ''}
+      </div>
+      <div class="approval-actions">
+        <button class="task-btn btn-approve" onclick="approveTask('${t.id}')">✓ 承認・完了</button>
+        <button class="task-btn btn-reject"  onclick="rejectTask('${t.id}')">↩ 差し戻し</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ═══════════════════════════════════════════
+   タスク操作
+═══════════════════════════════════════════ */
+function completeTask(id) {
+  const t = state.tasks.find(t => t.id === id);
+  if (!t) return;
+  const approver = staffById(t.approver);
+  const msg = t.approver
+    ? `「${t.title}」の完了を報告します。\n承認者（${approver?.name}）の確認待ちになります。`
+    : `「${t.title}」を完了にします。よろしいですか？`;
+  openConfirm({
+    title: '完了報告',
+    msg,
+    okLabel: '完了報告する',
+    okColor: 'var(--approve)',
+    onOk: () => {
+      if (t.approver) {
+        t.status = 'review';
+        addNotification(`「${t.title}」が完了報告されました（承認者：${approver?.name}）`, 'info');
+      } else {
+        t.status = 'done';
+        addNotification(`「${t.title}」を完了しました`, 'success');
+      }
+      saveState();
+      renderAll();
+    }
+  });
+}
+
+function approveTask(id) {
+  const t = state.tasks.find(t => t.id === id);
+  if (!t) return;
+  const assignee = staffById(t.assignee);
+  openConfirm({
+    title: 'タスクの承認',
+    msg: `「${t.title}」を承認して完了にします。\n担当：${assignee?.name}`,
+    okLabel: '承認・完了',
+    okColor: 'var(--approve)',
+    onOk: () => {
+      t.status = 'done';
+      addNotification(`「${t.title}」を承認・完了しました（担当：${assignee?.name}）`, 'success');
+      saveState();
+      renderAll();
+    }
+  });
+}
+
+function rejectTask(id) {
+  const t = state.tasks.find(t => t.id === id);
+  if (!t) return;
+  const assignee = staffById(t.assignee);
+  openConfirm({
+    title: '差し戻し',
+    msg: `「${t.title}」を差し戻しますか？\n担当（${assignee?.name}）の作業中に戻ります。`,
+    okLabel: '差し戻す',
+    okColor: 'var(--deadline)',
+    onOk: () => {
+      t.status = 'active';
+      addNotification(`「${t.title}」を差し戻しました（担当：${assignee?.name}）`, 'warning');
+      saveState();
+      renderAll();
+    }
+  });
+}
+
+function openConfirm({ title, msg, okLabel = '実行', okColor = 'var(--accent)', onOk }) {
+  document.getElementById('confirm-title').textContent = title;
+  document.getElementById('confirm-msg').textContent = msg;
+  const okBtn = document.getElementById('confirm-ok');
+  okBtn.textContent = okLabel;
+  okBtn.style.background = okColor;
+  okBtn.onclick = () => { closeConfirm(); onOk(); };
+  document.getElementById('confirm-modal').classList.add('open');
+}
+function closeConfirm() {
+  document.getElementById('confirm-modal').classList.remove('open');
+}
+
+function confirmDelete(id) {
+  const t = state.tasks.find(t => t.id === id);
+  openConfirm({
+    title: 'タスクの削除',
+    msg: `「${t?.title}」を削除しますか？この操作は取り消せません。`,
+    okLabel: '削除する',
+    okColor: 'var(--urgent)',
+    onOk: () => deleteTask(id)
+  });
+}
+
+function deleteTask(id) {
+  const t = state.tasks.find(t=>t.id===id);
+  state.tasks = state.tasks.filter(t=>t.id!==id);
+  addNotification(`「${t?.title}」を削除しました`, 'error');
+  saveState();
+  renderAll();
+}
+
+/* ═══════════════════════════════════════════
+   モーダル
+═══════════════════════════════════════════ */
+let _editingId = null;
+
+function populateStaffSelects() {
+  const el = document.getElementById('f-assignee');
+  el.innerHTML = state.staff.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+}
+
+function openAddModal() {
+  _editingId = null;
+  populateStaffSelects();
+  document.getElementById('modal-title-text').textContent = 'タスクを追加';
+  document.getElementById('f-title').value = '';
+  document.getElementById('f-assignee').value = currentStaff().id;
+document.getElementById('f-priority').value = 'normal';
+document.getElementById('f-deadline').value = '';
+document.getElementById('f-note').value = '';
+  document.getElementById('task-modal').classList.add('open');
+}
+
+function openEditModal(id) {
+  _editingId = id;
+  const t = state.tasks.find(t=>t.id===id);
+  if (!t) return;
+  populateStaffSelects();
+  document.getElementById('modal-title-text').textContent = 'タスクを編集';
+  document.getElementById('f-title').value = t.title;
+  document.getElementById('f-assignee').value = t.assignee;
+document.getElementById('f-priority').value = t.priority;
+document.getElementById('f-deadline').value = t.deadline || '';
+document.getElementById('f-note').value = t.note || '';
+  document.getElementById('task-modal').classList.add('open');
+}
+
+function closeTaskModal() {
+  document.getElementById('task-modal').classList.remove('open');
+  _editingId = null;
+}
+
+function submitTask() {
+  const title     = document.getElementById('f-title').value.trim();
+  const assignee  = document.getElementById('f-assignee').value;
+const priority  = document.getElementById('f-priority').value;
+const deadline  = document.getElementById('f-deadline').value;
+const note      = document.getElementById('f-note').value.trim();
+const me        = currentStaff();
+// 依頼者は常にログインユーザー
+// 担当者が自分自身なら承認不要、それ以外はログインユーザーが承認者
+const requester = me.id;
+const approver  = (assignee === me.id) ? null : me.id;
+
+if (!title) { showToast('タイトルを入力してください', 'error'); return; }
+
+if (_editingId) {
+  const t = state.tasks.find(t=>t.id===_editingId);
+  Object.assign(t, { title, assignee, requester, priority, deadline: deadline||null, approver, note });
+  addNotification(`「${title}」を更新しました`, 'info');
+} else {
+  const t = {
+    id: genId(), title, assignee, requester, priority,
+    deadline: deadline||null, approver,
+    status: 'active', note, createdAt: today()
+  };
+  state.tasks.push(t);
+  const assigneeStaff = staffById(assignee);
+  addNotification(`「${title}」を${assigneeStaff?.name}に追加しました`, 'success');
+}
+
+  saveState();
+  closeTaskModal();
+  renderAll();
+}
+
+/* ═══════════════════════════════════════════
+   ビュー切替
+═══════════════════════════════════════════ */
+let currentView = 'staff';
+function switchView(view, btn) {
+  currentView = view;
+  document.querySelectorAll('.view-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('staff-view').style.display    = view==='staff'    ? 'grid' : 'none';
+  document.getElementById('deadline-view').style.display = view==='deadline' ? 'block': 'none';
+  document.getElementById('approval-view').style.display = view==='approval' ? 'block': 'none';
+  renderAll();
+}
+
+function renderAll() {
+  renderStaffView();
+  renderDeadlineView();
+  renderApprovalView();
+  checkDeadlineAlerts();
+  renderNotifBadge();
+  renderNotifPanel();
+}
+
+/* ═══════════════════════════════════════════
+   ユーザー切替
+═══════════════════════════════════════════ */
+function initUserSelect() {
+  const sel = document.getElementById('current-user-select');
+  sel.innerHTML = state.staff.map(s=>`<option value="${s.name}">${s.name}</option>`).join('');
+  sel.value = state.currentUser;
+}
+
+function changeCurrentUser(name) {
+  state.currentUser = name;
+  saveState();
+  renderAll();
+  showToast(`${name} としてログインしました`, 'info');
+}
+
+/* ═══════════════════════════════════════════
+   定期アラートチェック（1分おき）
+═══════════════════════════════════════════ */
+function periodicCheck() {
+  const me = currentStaff();
+  const myTasks = state.tasks.filter(t=>t.assignee===me.id && t.status==='active');
+  const overdue = myTasks.filter(t=>t.deadline && t.deadline < today());
+  if (overdue.length) {
+    overdue.forEach(t => {
+      const key = `alerted_${t.id}`;
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, '1');
+        addNotification(`⚠️ 「${t.title}」の期限を超過しています`, 'warning');
+      }
+    });
+  }
+}
+
+/* ═══════════════════════════════════════════
+   外クリックでパネル閉じる
+═══════════════════════════════════════════ */
+document.addEventListener('click', e => {
+  const panel = document.getElementById('notif-panel');
+  if (panel.classList.contains('open') &&
+      !panel.contains(e.target) &&
+      !document.querySelector('.notif-btn').contains(e.target)) {
+    panel.classList.remove('open');
+  }
+});
+
+/* ═══════════════════════════════════════════
+   初期化
+═══════════════════════════════════════════ */
+// 過去日付を選べないよう today を min に設定
+document.getElementById('f-deadline').min = today();
+initUserSelect();
+renderAll();
+periodicCheck();
+setInterval(periodicCheck, 60000);
+</script>
+</body>
+</html>
