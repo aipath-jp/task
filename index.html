@@ -669,6 +669,8 @@
 /* ═══════════════════════════════════════════
    データ定義
 ═══════════════════════════════════════════ */
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbyHwembffUdFfaFYdCRcv6oBEN_jpWkMQZhzeO_-lW3IrYZs-A7G7IiyZo42c1y8D19gw/exec';
+
 const STAFF_COLORS = [
   '#e74c3c','#e67e22','#f1c40f','#2ecc71',
   '#1abc9c','#3498db','#9b59b6','#e91e63','#00bcd4','#ff5722'
@@ -682,26 +684,15 @@ function defaultState() {
   const add = (n) => { let d=new Date(today); d.setDate(d.getDate()+n); return fmt(d); };
 
   return {
-    currentUser: '山田 太郎',
-    staff: [
-      { id: 's1', name: '成瀬 陽太' },
-      { id: 's2', name: '佐藤 花子'},
-      { id: 's3', name: '鈴木 一郎' },
-      { id: 's4', name: '田中 美咲' },
-      { id: 's5', name: '伊藤 健太' },
-    ],
-    tasks: [
-      { id:'t1', title:'月次報告書の作成', assignee:'s2', requester:'s1', priority:'deadline',
-        deadline: add(2), approver:'s1', status:'active', note:'先月比のデータを含める', createdAt: fmt(today) },
-      { id:'t2', title:'取引先へのメール返信', assignee:'s3', requester:'s2', priority:'urgent',
-        deadline: add(0), approver:'s2', status:'active', note:'', createdAt: fmt(today) },
-      { id:'t3', title:'備品の発注確認', assignee:'s4', requester:'s1', priority:'normal',
-        deadline: add(5), approver:'', status:'active', note:'文具・トナー', createdAt: fmt(today) },
-      { id:'t4', title:'社内研修資料の更新', assignee:'s1', requester:'s1', priority:'deadline',
-        deadline: add(-1), approver:'s1', status:'active', note:'', createdAt: fmt(today) },
-      { id:'t5', title:'予算報告スライド準備', assignee:'s5', requester:'s1', priority:'deadline',
-        deadline: add(1), approver:'s1', status:'review', note:'来週の会議用', createdAt: fmt(today) },
-    ],
+  currentUser: '成瀬 陽太',
+  staff: [
+    { id: 's1', name: '成瀬 陽太', role: '部長' },
+    { id: 's2', name: '佐藤 花子', role: '主任' },
+    { id: 's3', name: '鈴木 一郎', role: '担当' },
+    { id: 's4', name: '田中 美咲', role: '担当' },
+    { id: 's5', name: '伊藤 健太', role: '担当' },
+  ],
+    tasks: [],
     notifications: []
   };
 }
@@ -714,6 +705,85 @@ function loadState() {
 }
 function saveState() {
   localStorage.setItem('taskManager_v2', JSON.stringify(state));
+}
+
+/* ═══════════════════════════════════════════
+   GAS通信
+═══════════════════════════════════════════ */
+// GET（JSONP）
+function gasGet(action, params = {}) {
+  return new Promise((resolve, reject) => {
+    const cbName = '_cb_' + Date.now();
+    const query = new URLSearchParams({ action, callback: cbName, ...params }).toString();
+    const script = document.createElement('script');
+    window[cbName] = (data) => {
+      delete window[cbName];
+      script.remove();
+      data.error ? reject(data.error) : resolve(data);
+    };
+    script.onerror = () => reject('network error');
+    script.src = `${GAS_URL}?${query}`;
+    document.head.appendChild(script);
+  });
+}
+
+// POST（JSONP）
+function gasPost(action, payload) {
+  return new Promise((resolve, reject) => {
+    fetch(GAS_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action, payload })
+    }).then(() => {
+      resolve({ ok: true });
+    }).catch(reject);
+  });
+}
+
+// POST後に最新データを再取得して同期
+async function gasPostAndSync(action, payload) {
+  await gasPost(action, payload);
+  await syncFromGAS();
+}
+
+// GASから全タスクを取得してstateに反映
+async function syncFromGAS() {
+  try {
+    const tasks = await gasGet('getTasks');
+    state.tasks = tasks;
+    saveState();         // ローカルにキャッシュ
+    renderAll();
+  } catch(e) {
+    console.warn('GAS sync failed, using local cache:', e);
+  }
+}
+
+// 未読通知をGASから取得
+async function syncNotifications() {
+  try {
+    const me = currentStaff();
+    const notifs = await gasGet('getNotifications', { userId: me.id });
+    notifs.forEach(n => {
+      // ローカルに未追加のものだけ追加
+      if (!state.notifications.find(local => local.id === n.id)) {
+        state.notifications.unshift({
+          id:   n.id,
+          msg:  n.message,
+          type: n.type,
+          time: new Date(n.created_at).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}),
+          read: false
+        });
+      }
+    });
+    if (state.notifications.length > 30)
+      state.notifications = state.notifications.slice(0, 30);
+    saveState();
+    renderNotifBadge();
+    renderNotifPanel();
+  } catch(e) {
+    console.warn('notification sync failed:', e);
+  }
 }
 
 /* ═══════════════════════════════════════════
@@ -798,11 +868,18 @@ function toggleNotifPanel() {
   const panel = document.getElementById('notif-panel');
   panel.classList.toggle('open');
   if (panel.classList.contains('open')) {
-    state.notifications.forEach(n=>n.read=true);
-    saveState();
-    renderNotifBadge();
-    renderNotifPanel();
-  }
+  const me = currentStaff();
+  state.notifications.forEach(n => {
+    if (!n.read) {
+      n.read = true;
+      // GAS側のread_byにも記録
+      gasPost('markRead', { notifId: n.id, userId: me.id }).catch(() => {});
+    }
+  });
+  saveState();
+  renderNotifBadge();
+  renderNotifPanel();
+}
 }
 
 function clearNotifications() {
@@ -1019,16 +1096,14 @@ function completeTask(id) {
     msg,
     okLabel: '完了報告する',
     okColor: 'var(--approve)',
-    onOk: () => {
-      if (t.approver) {
-        t.status = 'review';
-        addNotification(`「${t.title}」が完了報告されました（承認者：${approver?.name}）`, 'info');
-      } else {
-        t.status = 'done';
-        addNotification(`「${t.title}」を完了しました`, 'success');
-      }
-      saveState();
-      renderAll();
+    onOk: async () => {
+      const assignee = staffById(t.assignee);
+      await gasPostAndSync('completeTask', {
+        id: t.id, title: t.title,
+        approver: t.approver, assignee: t.assignee,
+        assigneeName: assignee?.name
+      });
+      showToast(t.approver ? `完了報告しました` : `「${t.title}」を完了しました`, 'success');
     }
   });
 }
@@ -1042,11 +1117,12 @@ function approveTask(id) {
     msg: `「${t.title}」を承認して完了にします。\n担当：${assignee?.name}`,
     okLabel: '承認・完了',
     okColor: 'var(--approve)',
-    onOk: () => {
-      t.status = 'done';
-      addNotification(`「${t.title}」を承認・完了しました（担当：${assignee?.name}）`, 'success');
-      saveState();
-      renderAll();
+    onOk: async () => {
+      await gasPostAndSync('approveTask', {
+        id: t.id, title: t.title,
+        assignee: t.assignee, assigneeName: assignee?.name
+      });
+      showToast(`「${t.title}」を承認・完了しました`, 'success');
     }
   });
 }
@@ -1060,11 +1136,12 @@ function rejectTask(id) {
     msg: `「${t.title}」を差し戻しますか？\n担当（${assignee?.name}）の作業中に戻ります。`,
     okLabel: '差し戻す',
     okColor: 'var(--deadline)',
-    onOk: () => {
-      t.status = 'active';
-      addNotification(`「${t.title}」を差し戻しました（担当：${assignee?.name}）`, 'warning');
-      saveState();
-      renderAll();
+    onOk: async () => {
+      await gasPostAndSync('rejectTask', {
+        id: t.id, title: t.title,
+        assignee: t.assignee, assigneeName: assignee?.name
+      });
+      showToast(`「${t.title}」を差し戻しました`, 'warning');
     }
   });
 }
@@ -1093,12 +1170,10 @@ function confirmDelete(id) {
   });
 }
 
-function deleteTask(id) {
+async function deleteTask(id) {
   const t = state.tasks.find(t=>t.id===id);
-  state.tasks = state.tasks.filter(t=>t.id!==id);
-  addNotification(`「${t?.title}」を削除しました`, 'error');
-  saveState();
-  renderAll();
+  await gasPostAndSync('deleteTask', { id });
+  showToast(`「${t?.title}」を削除しました`, 'error');
 }
 
 /* ═══════════════════════════════════════════
@@ -1142,38 +1217,32 @@ function closeTaskModal() {
   _editingId = null;
 }
 
-function submitTask() {
-  const title     = document.getElementById('f-title').value.trim();
-  const assignee  = document.getElementById('f-assignee').value;
-const priority  = document.getElementById('f-priority').value;
-const deadline  = document.getElementById('f-deadline').value;
-const note      = document.getElementById('f-note').value.trim();
-const me        = currentStaff();
-// 依頼者は常にログインユーザー
-// 担当者が自分自身なら承認不要、それ以外はログインユーザーが承認者
-const requester = me.id;
-const approver  = (assignee === me.id) ? null : me.id;
+async function submitTask() {
+  const title    = document.getElementById('f-title').value.trim();
+  const assignee = document.getElementById('f-assignee').value;
+  const priority = document.getElementById('f-priority').value;
+  const deadline = document.getElementById('f-deadline').value;
+  const note     = document.getElementById('f-note').value.trim();
+  const me       = currentStaff();
+  const requester = me.id;
+  const approver  = (assignee === me.id) ? null : me.id;
 
-if (!title) { showToast('タイトルを入力してください', 'error'); return; }
+  if (!title) { showToast('タイトルを入力してください', 'error'); return; }
 
-if (_editingId) {
-  const t = state.tasks.find(t=>t.id===_editingId);
-  Object.assign(t, { title, assignee, requester, priority, deadline: deadline||null, approver, note });
-  addNotification(`「${title}」を更新しました`, 'info');
-} else {
-  const t = {
-    id: genId(), title, assignee, requester, priority,
-    deadline: deadline||null, approver,
-    status: 'active', note, createdAt: today()
-  };
-  state.tasks.push(t);
   const assigneeStaff = staffById(assignee);
-  addNotification(`「${title}」を${assigneeStaff?.name}に追加しました`, 'success');
-}
+  const payload = { title, assignee, requester, approver, priority,
+                    deadline: deadline||null, note,
+                    requesterName: me.name };
 
-  saveState();
+  if (_editingId) {
+    await gasPostAndSync('updateTask', { ...payload, id: _editingId });
+    showToast(`「${title}」を更新しました`, 'info');
+  } else {
+    await gasPostAndSync('addTask', payload);
+    showToast(`「${title}」を${assigneeStaff?.name}に追加しました`, 'success');
+  }
+
   closeTaskModal();
-  renderAll();
 }
 
 /* ═══════════════════════════════════════════
@@ -1210,9 +1279,11 @@ function initUserSelect() {
 
 function changeCurrentUser(name) {
   state.currentUser = name;
+  state.notifications = []; // 前ユーザーの通知をクリア
   saveState();
   renderAll();
   showToast(`${name} としてログインしました`, 'info');
+  syncNotifications(); // 新ユーザーの未読通知をGASから取得
 }
 
 /* ═══════════════════════════════════════════
@@ -1227,7 +1298,8 @@ function periodicCheck() {
       const key = `alerted_${t.id}`;
       if (!sessionStorage.getItem(key)) {
         sessionStorage.setItem(key, '1');
-        addNotification(`⚠️ 「${t.title}」の期限を超過しています`, 'warning');
+        // GASの通知と重複しないようトーストのみ表示
+        showToast(`⚠️ 「${t.title}」の期限を超過しています`, 'warning');
       }
     });
   }
@@ -1251,9 +1323,13 @@ document.addEventListener('click', e => {
 // 過去日付を選べないよう today を min に設定
 document.getElementById('f-deadline').min = today();
 initUserSelect();
-renderAll();
+renderAll();                      // まずローカルキャッシュで即時表示
+syncFromGAS();                    // GASから最新タスクを取得
+syncNotifications();              // 未読通知を取得
 periodicCheck();
 setInterval(periodicCheck, 60000);
+setInterval(syncFromGAS, 30000);          // 30秒おきにタスク同期
+setInterval(syncNotifications, 30000);    // 30秒おきに通知確認
 </script>
 </body>
 </html>
