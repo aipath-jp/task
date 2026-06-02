@@ -733,6 +733,17 @@
   </div>
 </div>
 
+<!-- ユーザー選択モーダル -->
+<div class="modal-overlay" id="user-select-modal">
+  <div class="modal" style="max-width:360px; text-align:center">
+    <div class="modal-title" style="justify-content:center">
+      <div class="modal-title-bar"></div>
+      <span>ログインユーザーを選択</span>
+    </div>
+    <div id="user-select-list" style="display:flex; flex-direction:column; gap:8px; margin-top:8px"></div>
+  </div>
+</div>
+
 <!-- 確認ダイアログ -->
 <div class="modal-overlay" id="confirm-modal">
   <div class="modal confirm-modal">
@@ -772,13 +783,13 @@ let state = loadState();
 
 function defaultState() {
   return {
-    currentUser: '成瀬 陽太',
+    currentUser: null,
   staff: [
-  { id: 's1', name: '成瀬 陽太' },
-  { id: 's2', name: '小橋 一元' },
-  { id: 's3', name: '鈴木 一郎' },
-  { id: 's4', name: '田中 美咲' },
-  { id: 's5', name: '伊藤 健太' },
+  { id: 's1', name: '成瀬' },
+  { id: 's2', name: '一元' },
+  { id: 's3', name: '酒井' },
+  { id: 's4', name: '齋藤' },
+  { id: 's5', name: '岡田' },
 ],
     tasks: [],
     notifications: []
@@ -1423,7 +1434,33 @@ function renderAll() {
 function initUserSelect() {
   const sel = document.getElementById('current-user-select');
   sel.innerHTML = state.staff.map(s=>`<option value="${s.name}">${s.name}</option>`).join('');
-  sel.value = state.currentUser;
+  if (state.currentUser) sel.value = state.currentUser;
+
+  // 未選択なら選択モーダルを表示
+  if (!state.currentUser) {
+    const list = document.getElementById('user-select-list');
+    list.innerHTML = state.staff.map(s => `
+      <button onclick="selectUserAndClose('${s.name}')"
+        style="width:100%; padding:12px; background:var(--surface); border:1px solid var(--border);
+               color:var(--text); border-radius:6px; cursor:pointer; font-size:1rem;
+               font-family:'Noto Sans JP',sans-serif; transition:all 0.2s;"
+        onmouseover="this.style.borderColor='var(--border2)'"
+        onmouseout="this.style.borderColor='var(--border)'">
+        ${s.name}
+      </button>
+    `).join('');
+    document.getElementById('user-select-modal').classList.add('open');
+  }
+}
+
+function selectUserAndClose(name) {
+  document.getElementById('user-select-modal').classList.remove('open');
+  state.currentUser = name;
+  const sel = document.getElementById('current-user-select');
+  sel.value = name;
+  saveState();
+  renderAll();
+  syncNotifications();
 }
 
 function changeCurrentUser(name) {
