@@ -1299,9 +1299,12 @@ function openConfirm({ title, msg, okLabel = '実行', okColor = 'var(--accent)'
   okBtn.style.background = okColor;
   okBtn.onclick = () => { closeConfirm(); onOk(); };
   document.getElementById('confirm-modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
 }
+
 function closeConfirm() {
   document.getElementById('confirm-modal').classList.remove('open');
+  document.body.style.overflow = '';
 }
 
 function confirmDelete(id) {
@@ -1347,11 +1350,13 @@ function openAddModal() {
   document.getElementById('modal-title-text').textContent = 'タスクを追加';
   document.getElementById('f-title').value = '';
   document.getElementById('f-assignee').value = currentStaff().id;
-document.getElementById('f-priority').value = 'normal';
-document.getElementById('f-deadline').value = '';
-document.getElementById('f-note').value = '';
+  document.getElementById('f-priority').value = 'normal';
+  document.getElementById('f-deadline').value = '';
+  document.getElementById('f-note').value = '';
   document.getElementById('task-modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
 }
+
 
 function openEditModal(id) {
   _editingId = id;
@@ -1369,6 +1374,7 @@ document.getElementById('f-note').value = t.note || '';
 
 function closeTaskModal() {
   document.getElementById('task-modal').classList.remove('open');
+  document.body.style.overflow = '';
   _editingId = null;
 }
 
@@ -1450,11 +1456,13 @@ function initUserSelect() {
       </button>
     `).join('');
     document.getElementById('user-select-modal').classList.add('open');
+    document.body.style.overflow = 'hidden';
   }
 }
 
 function selectUserAndClose(name) {
   document.getElementById('user-select-modal').classList.remove('open');
+  document.body.style.overflow = '';
   state.currentUser = name;
   const sel = document.getElementById('current-user-select');
   sel.value = name;
