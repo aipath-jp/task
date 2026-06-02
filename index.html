@@ -883,7 +883,11 @@ async function syncFromGAS() {
     if (t.deadline) {
       const d = new Date(t.deadline);
       if (!isNaN(d.getTime())) {
-        deadline = d.toISOString().split('T')[0];
+        // JST（+9時間）を考慮してローカルの年・月・日を直接取得して結合
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const date = String(d.getDate()).padStart(2, '0');
+        deadline = `${year}-${month}-${date}`;
       } else if (String(t.deadline).match(/^\d{4}-\d{2}-\d{2}$/)) {
         deadline = String(t.deadline);
       }
