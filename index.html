@@ -681,12 +681,12 @@ function defaultState() {
   return {
     currentUser: '成瀬 陽太',
   staff: [
-    { id: 's1', name: '成瀬 陽太', role: '部長' },
-    { id: 's2', name: '佐藤 花子', role: '主任' },
-    { id: 's3', name: '鈴木 一郎', role: '担当' },
-    { id: 's4', name: '田中 美咲', role: '担当' },
-    { id: 's5', name: '伊藤 健太', role: '担当' },
-  ],
+  { id: 's1', name: '成瀬 陽太' },
+  { id: 's2', name: '小橋 一元' },
+  { id: 's3', name: '鈴木 一郎' },
+  { id: 's4', name: '田中 美咲' },
+  { id: 's5', name: '伊藤 健太' },
+],
     tasks: [],
     notifications: []
   };
@@ -971,7 +971,6 @@ function renderStaffView() {
           <div class="staff-avatar" style="background:${color}">${staffInitial(s.name)}</div>
           <div>
             <div class="staff-name">${s.name}</div>
-            <div class="staff-role">${s.role}</div>
           </div>
         </div>
         <div class="staff-counts">
