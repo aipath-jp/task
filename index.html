@@ -525,8 +525,73 @@
   .dr-later   { border-color: var(--border2);  color: var(--text3);    background: none; }
 
   /* 確認ダイアログ */
-  .confirm-modal { max-width: 360px; }
-  .confirm-msg { font-size: 0.85rem; color: var(--text2); line-height: 1.7; margin-bottom: 6px; }
+.confirm-modal { max-width: 360px; }
+.confirm-msg { font-size: 0.85rem; color: var(--text2); line-height: 1.7; margin-bottom: 6px; }
+
+/* ─── スマホ対応 ─── */
+.btn-icon-only { display: none; }
+
+@media (max-width: 600px) {
+  header { padding: 0 1rem; }
+
+  .login-label { display: none; }
+
+  .btn-label { display: none; }
+  .btn-icon-only { display: inline; }
+  .add-task-btn { padding: 8px 12px; min-width: 36px; }
+
+  .user-select-wrap { padding: 6px 8px; }
+
+  .main-wrap { padding: 1rem 0.75rem 4rem; }
+
+  #staff-view {
+    grid-template-columns: 1fr;
+  }
+
+  .deadline-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .modal {
+    padding: 20px 16px;
+    margin: 0 12px;
+  }
+
+  .form-row-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .approval-item {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .approval-actions {
+    width: 100%;
+  }
+  .approval-actions .task-btn {
+    flex: 1;
+  }
+
+  .task-actions {
+    flex-wrap: wrap;
+  }
+
+  #notif-panel {
+    width: calc(100vw - 2rem);
+    right: 1rem;
+  }
+
+  .view-tabs {
+    width: 100%;
+    justify-content: stretch;
+  }
+  .view-tab {
+    flex: 1;
+    text-align: center;
+    padding: 6px 8px;
+    font-size: 0.72rem;
+  }
+}
 </style>
 </head>
 <body>
@@ -539,7 +604,7 @@
   </div>
   <div class="header-right">
     <div class="user-select-wrap">
-      <span>ログイン中：</span>
+      <span class="login-label">ログイン中：</span>
       <select id="current-user-select" onchange="changeCurrentUser(this.value)"></select>
     </div>
     <button class="notif-btn" onclick="toggleNotifPanel()" title="通知">
@@ -547,7 +612,8 @@
       <span class="notif-badge" id="notif-badge" style="display:none">0</span>
     </button>
     <button class="add-task-btn" onclick="openAddModal()">
-      ＋ タスク追加
+      <span class="btn-label">＋ タスク追加</span>
+      <span class="btn-icon-only">＋</span>
     </button>
   </div>
 </header>
