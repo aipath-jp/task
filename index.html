@@ -552,9 +552,8 @@
 <!-- 通知パネル -->
 <div id="notif-panel">
   <div class="notif-header">
-    <span>通知</span>
-    <button class="notif-clear" onclick="clearNotifications()">すべて消去</button>
-  </div>
+  <span>通知</span>
+</div>
   <div id="notif-list"></div>
 </div>
 
@@ -807,21 +806,15 @@ async function syncNotifications() {
   try {
     const me = currentStaff();
     const notifs = await gasGet('getNotifications', { userId: me.id });
-    if (!Array.isArray(notifs)) return; // 配列でない場合は処理しない
-    notifs.forEach(n => {
-      // ローカルに未追加のものだけ追加
-      if (!state.notifications.find(local => local.id === n.id)) {
-        state.notifications.unshift({
-          id:   n.id,
-          msg:  n.message,
-          type: n.type,
-          time: new Date(n.created_at).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}),
-          read: false
-        });
-      }
-    });
-    if (state.notifications.length > 30)
-      state.notifications = state.notifications.slice(0, 30);
+    if (!Array.isArray(notifs)) return;
+    // ローカルキャッシュを使わずGASから取得したものだけで上書き
+    state.notifications = notifs.slice(0, 10).map(n => ({
+      id:   n.id,
+      msg:  n.message,
+      type: n.type,
+      time: new Date(n.created_at).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}),
+      read: false
+    }));
     saveState();
     renderNotifBadge();
     renderNotifPanel();
@@ -927,7 +920,7 @@ function toggleNotifPanel() {
 }
 
 function clearNotifications() {
-  state.notifications = [];
+  state.notifications = state.notifications.slice(0, 10);
   saveState();
   renderNotifBadge();
   renderNotifPanel();
