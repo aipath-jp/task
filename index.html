@@ -669,7 +669,7 @@
 /* ═══════════════════════════════════════════
    データ定義
 ═══════════════════════════════════════════ */
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbyHwembffUdFfaFYdCRcv6oBEN_jpWkMQZhzeO_-lW3IrYZs-A7G7IiyZo42c1y8D19gw/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxcy34iUe_wy8J8W-JjObyiDsRxGSZGj0G-QBs2aXYjppkeE9kNaikT1vn6zRiSQRjjvg/exec';
 
 const STAFF_COLORS = [
   '#e74c3c','#e67e22','#f1c40f','#2ecc71',
@@ -714,22 +714,31 @@ function saveState() {
 function gasGet(action, params = {}) {
   return new Promise((resolve, reject) => {
     const cbName = '_cb_' + Date.now();
-    const query = new URLSearchParams({ action, callback: cbName, ...params }).toString();
+    const query = new URLSearchParams({ action, callback: cbName, _t: Date.now(), ...params }).toString();
     const script = document.createElement('script');
+
+    console.log('[GAS] 送信:', action, `${GAS_URL}?${query}`);
 
     const timer = setTimeout(() => {
       delete window[cbName];
       script.remove();
+      console.error('[GAS] タイムアウト:', action);
       reject('timeout');
-    }, 10000); // 10秒でタイムアウト
+    }, 15000);
 
     window[cbName] = (data) => {
       clearTimeout(timer);
       delete window[cbName];
       script.remove();
+      console.log('[GAS] 受信:', action, data);
       data.error ? reject(data.error) : resolve(data);
     };
-    script.onerror = () => { clearTimeout(timer); reject('network error'); };
+    script.onerror = (err) => {
+      clearTimeout(timer);
+      script.remove();
+      console.error('[GAS] スクリプトエラー:', action, err);
+      reject('network error');
+    };
     script.src = `${GAS_URL}?${query}`;
     document.head.appendChild(script);
   });
@@ -737,21 +746,15 @@ function gasGet(action, params = {}) {
 
 // POST（JSONP）
 function gasPost(action, payload) {
-  return new Promise((resolve, reject) => {
-    fetch(GAS_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action, payload })
-    }).then(() => {
-      resolve({ ok: true });
-    }).catch(reject);
-  });
+  const cleaned = Object.fromEntries(
+    Object.entries(payload).map(([k, v]) => [k, v == null ? '' : v])
+  );
+  return gasGet(action, cleaned);
 }
 
-// POST後に最新データを再取得して同期
 async function gasPostAndSync(action, payload) {
   await gasPost(action, payload);
+  await new Promise(resolve => setTimeout(resolve, 1500));
   await syncFromGAS();
 }
 
@@ -759,8 +762,40 @@ async function gasPostAndSync(action, payload) {
 async function syncFromGAS() {
   try {
     const tasks = await gasGet('getTasks');
-    state.tasks = tasks;
-    saveState();         // ローカルにキャッシュ
+    if (!Array.isArray(tasks)) {
+      console.warn('getTasks returned non-array:', tasks);
+      return;
+    }
+    // 空文字のidを持つ行を除外し、各フィールドのundefinedを''に変換
+    state.tasks = tasks
+  .filter(t => t.id && t.id !== '')
+  .map(t => {
+    // GASがDate型で返すdeadlineをYYYY-MM-DD文字列に変換
+    let deadline = null;
+    if (t.deadline) {
+      const d = new Date(t.deadline);
+      if (!isNaN(d.getTime())) {
+        deadline = d.toISOString().split('T')[0];
+      } else if (String(t.deadline).match(/^\d{4}-\d{2}-\d{2}$/)) {
+        deadline = String(t.deadline);
+      }
+    }
+    // "null"文字列をnullに戻す
+    const approver = (!t.approver || t.approver === 'null') ? null : String(t.approver);
+
+    return {
+      id:        String(t.id        || ''),
+      title:     String(t.title     || ''),
+      assignee:  String(t.assignee  || ''),
+      requester: String(t.requester || ''),
+      approver,
+      priority:  String(t.priority  || 'normal'),
+      deadline,
+      status:    String(t.status    || 'active'),
+      note:      String(t.note      || ''),
+    };
+  });
+    saveState();
     renderAll();
   } catch(e) {
     console.warn('GAS sync failed, using local cache:', e);
@@ -1239,7 +1274,7 @@ async function submitTask() {
   const note     = document.getElementById('f-note').value.trim();
   const me       = currentStaff();
   const requester = me.id;
-  const approver  = (assignee === me.id) ? null : me.id;
+  const approver  = (assignee === me.id) ? '' : me.id;
 
   if (!title) { showToast('タイトルを入力してください', 'error'); return; }
 
@@ -1247,6 +1282,8 @@ async function submitTask() {
   const payload = { title, assignee, requester, approver, priority,
                     deadline: deadline||null, note,
                     requesterName: me.name };
+
+  closeTaskModal(); // 先に閉じる
 
   try {
     if (_editingId) {
@@ -1259,8 +1296,6 @@ async function submitTask() {
   } catch(e) {
     showToast('保存に失敗しました。再度お試しください', 'error');
     console.error('submitTask error:', e);
-  } finally {
-    closeTaskModal(); // 成功・失敗どちらでも必ずモーダルを閉じる
   }
 }
 
