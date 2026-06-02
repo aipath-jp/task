@@ -679,12 +679,8 @@ const STAFF_COLORS = [
 let state = loadState();
 
 function defaultState() {
-  const today = new Date();
-  const fmt = d => d.toISOString().split('T')[0];
-  const add = (n) => { let d=new Date(today); d.setDate(d.getDate()+n); return fmt(d); };
-
   return {
-  currentUser: '成瀬 陽太',
+    currentUser: '成瀬 陽太',
   staff: [
     { id: 's1', name: '成瀬 陽太', role: '部長' },
     { id: 's2', name: '佐藤 花子', role: '主任' },
@@ -700,7 +696,11 @@ function defaultState() {
 function loadState() {
   try {
     const s = localStorage.getItem('taskManager_v2');
-    return s ? JSON.parse(s) : defaultState();
+    if (!s) return defaultState();
+    const saved = JSON.parse(s);
+    // staffとcurrentUserはHTMLの定義を常に優先（キャッシュ古化防止）
+    const base = defaultState();
+    return { ...saved, staff: base.staff, currentUser: saved.currentUser || base.currentUser };
   } catch(e) { return defaultState(); }
 }
 function saveState() {
@@ -716,12 +716,20 @@ function gasGet(action, params = {}) {
     const cbName = '_cb_' + Date.now();
     const query = new URLSearchParams({ action, callback: cbName, ...params }).toString();
     const script = document.createElement('script');
+
+    const timer = setTimeout(() => {
+      delete window[cbName];
+      script.remove();
+      reject('timeout');
+    }, 10000); // 10秒でタイムアウト
+
     window[cbName] = (data) => {
+      clearTimeout(timer);
       delete window[cbName];
       script.remove();
       data.error ? reject(data.error) : resolve(data);
     };
-    script.onerror = () => reject('network error');
+    script.onerror = () => { clearTimeout(timer); reject('network error'); };
     script.src = `${GAS_URL}?${query}`;
     document.head.appendChild(script);
   });
@@ -764,6 +772,7 @@ async function syncNotifications() {
   try {
     const me = currentStaff();
     const notifs = await gasGet('getNotifications', { userId: me.id });
+    if (!Array.isArray(notifs)) return; // 配列でない場合は処理しない
     notifs.forEach(n => {
       // ローカルに未追加のものだけ追加
       if (!state.notifications.find(local => local.id === n.id)) {
@@ -1172,8 +1181,13 @@ function confirmDelete(id) {
 
 async function deleteTask(id) {
   const t = state.tasks.find(t=>t.id===id);
-  await gasPostAndSync('deleteTask', { id });
-  showToast(`「${t?.title}」を削除しました`, 'error');
+  try {
+    await gasPostAndSync('deleteTask', { id });
+    showToast(`「${t?.title}」を削除しました`, 'error');
+  } catch(e) {
+    showToast('削除に失敗しました', 'error');
+    console.error('deleteTask error:', e);
+  }
 }
 
 /* ═══════════════════════════════════════════
@@ -1234,15 +1248,20 @@ async function submitTask() {
                     deadline: deadline||null, note,
                     requesterName: me.name };
 
-  if (_editingId) {
-    await gasPostAndSync('updateTask', { ...payload, id: _editingId });
-    showToast(`「${title}」を更新しました`, 'info');
-  } else {
-    await gasPostAndSync('addTask', payload);
-    showToast(`「${title}」を${assigneeStaff?.name}に追加しました`, 'success');
+  try {
+    if (_editingId) {
+      await gasPostAndSync('updateTask', { ...payload, id: _editingId });
+      showToast(`「${title}」を更新しました`, 'info');
+    } else {
+      await gasPostAndSync('addTask', payload);
+      showToast(`「${title}」を${assigneeStaff?.name}に追加しました`, 'success');
+    }
+  } catch(e) {
+    showToast('保存に失敗しました。再度お試しください', 'error');
+    console.error('submitTask error:', e);
+  } finally {
+    closeTaskModal(); // 成功・失敗どちらでも必ずモーダルを閉じる
   }
-
-  closeTaskModal();
 }
 
 /* ═══════════════════════════════════════════
