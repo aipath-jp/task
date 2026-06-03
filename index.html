@@ -1370,10 +1370,11 @@ function openEditModal(id) {
   document.getElementById('modal-title-text').textContent = 'タスクを編集';
   document.getElementById('f-title').value = t.title;
   document.getElementById('f-assignee').value = t.assignee;
-document.getElementById('f-priority').value = t.priority;
-document.getElementById('f-deadline').value = t.deadline || '';
-document.getElementById('f-note').value = t.note || '';
+  document.getElementById('f-priority').value = t.priority;
+  document.getElementById('f-deadline').value = t.deadline || '';
+  document.getElementById('f-note').value = t.note || '';
   document.getElementById('task-modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
 }
 
 function closeTaskModal() {
@@ -1399,11 +1400,12 @@ async function submitTask() {
                     deadline: deadline||null, note,
                     requesterName: me.name };
 
-  closeTaskModal(); // 先に閉じる
+  const editingId = _editingId; // closeTaskModal前に退避
+  closeTaskModal();
 
   try {
-    if (_editingId) {
-      await gasPostAndSync('updateTask', { ...payload, id: _editingId });
+    if (editingId) {
+      await gasPostAndSync('updateTask', { ...payload, id: editingId });
       showToast(`「${title}」を更新しました`, 'info');
     } else {
       await gasPostAndSync('addTask', payload);
