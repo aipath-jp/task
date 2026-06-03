@@ -1070,7 +1070,7 @@ let _editingKaizenId = null;
 let _resultKaizenId  = null;
 
 const COST_CATEGORIES   = ['人件費','会場費','広告費','制作費','交通費','その他'];
-const PROFIT_CATEGORIES = ['売上増加','新規顧客獲得','既存顧客深耕','ブランド認知','その他'];
+const PROFIT_CATEGORIES = ['売上','新規顧客獲得','問い合わせ','その他'];
 
 function sumDetails(rows) {
   return (rows||[]).reduce((s,r) => s + (Number(r.amount)||0), 0);
