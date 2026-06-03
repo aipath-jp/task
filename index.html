@@ -546,6 +546,157 @@
 .confirm-modal { max-width: 360px; }
 .confirm-msg { font-size: 0.85rem; color: var(--text2); line-height: 1.7; margin-bottom: 6px; }
 
+/* ─── カイゼンタブ ─── */
+.kaizen-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 1.2rem;
+}
+.kaizen-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  animation: fadeIn 0.4s ease both;
+  transition: border-color 0.2s;
+}
+.kaizen-card:hover { border-color: var(--border2); }
+.kaizen-card-header {
+  padding: 14px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+}
+.kaizen-card-title {
+  font-size: 0.95rem; font-weight: 500; letter-spacing: 0.04em; margin-bottom: 4px;
+}
+.kaizen-card-meta {
+  font-size: 0.68rem; color: var(--text3); display: flex; gap: 8px; flex-wrap: wrap;
+}
+
+.kaizen-kpi-section {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+}
+.kaizen-kpi-block {
+  background: var(--panel); border-radius: 6px; padding: 10px 12px;
+  border: 1px solid var(--border);
+}
+.kaizen-kpi-block.kpi-cost   { border-top: 2px solid #e74c3c; }
+.kaizen-kpi-block.kpi-profit { border-top: 2px solid #27ae60; }
+.kpi-label {
+  font-size: 0.62rem; color: var(--text3); letter-spacing: 0.1em; margin-bottom: 6px;
+}
+.kpi-value { font-family: 'DM Mono', monospace; font-size: 1.05rem; font-weight: 500; }
+.kpi-value.cost-val   { color: #e74c3c; }
+.kpi-value.profit-val { color: #58d68d; }
+.kpi-value.none-val   { color: var(--text3); font-size: 0.78rem; }
+.kpi-sub { font-size: 0.62rem; color: var(--text3); margin-top: 3px; }
+.kpi-breakdown {
+  font-size: 0.62rem; color: var(--text3); margin-top: 4px; line-height: 1.7;
+}
+.kpi-roi {
+  font-size: 0.7rem; padding: 2px 7px; border-radius: 3px;
+  font-family: 'DM Mono', monospace; font-weight: 500; margin-top: 4px; display: inline-block;
+}
+.roi-plus  { background: rgba(39,174,96,0.15);  color: #58d68d; border: 1px solid rgba(39,174,96,0.3); }
+.roi-minus { background: rgba(231,76,60,0.15);  color: #ff6b5b; border: 1px solid rgba(231,76,60,0.3); }
+
+.kaizen-fb-section { padding: 12px 16px; }
+.kaizen-fb-title { font-size: 0.65rem; color: var(--text3); letter-spacing: 0.12em; margin-bottom: 8px; }
+.kaizen-comment {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 4px; padding: 8px 10px; margin-bottom: 6px;
+  font-size: 0.76rem; line-height: 1.6; animation: fadeIn 0.3s ease;
+}
+.kaizen-comment-meta {
+  font-size: 0.64rem; color: var(--text3); margin-bottom: 3px;
+  display: flex; align-items: center; gap: 6px;
+}
+.kaizen-comment-author { color: var(--text2); font-weight: 500; }
+.kaizen-add-comment { display: flex; gap: 6px; margin-top: 8px; }
+.kaizen-add-comment textarea {
+  flex: 1; background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); border-radius: 4px; padding: 7px 10px;
+  font-family: 'Noto Sans JP', sans-serif; font-size: 0.78rem;
+  outline: none; resize: none; height: 56px; transition: border-color 0.2s;
+}
+.kaizen-add-comment textarea:focus { border-color: var(--border2); }
+.kaizen-add-comment button {
+  background: var(--panel); border: 1px solid var(--border2);
+  color: var(--text2); border-radius: 4px; padding: 0 12px;
+  cursor: pointer; font-size: 0.75rem; font-family: 'Noto Sans JP', sans-serif;
+  transition: all 0.2s; white-space: nowrap;
+}
+.kaizen-add-comment button:hover { background: var(--border2); color: var(--text); }
+.kaizen-card-actions {
+  padding: 10px 16px; border-top: 1px solid var(--border); display: flex; gap: 6px;
+}
+.kaizen-filter-bar {
+  display: flex; gap: 8px; margin-bottom: 1.2rem; flex-wrap: wrap; align-items: center;
+}
+
+/* 実績明細テーブル */
+.detail-table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+.detail-table th {
+  font-size: 0.65rem; color: var(--text3); letter-spacing: 0.08em;
+  padding: 4px 6px; border-bottom: 1px solid var(--border); text-align: left; font-weight: 400;
+}
+.detail-table td { padding: 5px 4px; vertical-align: middle; }
+.detail-table tr:not(:last-child) td { border-bottom: 1px solid var(--border); }
+.detail-select {
+  background: var(--surface); border: 1px solid var(--border); color: var(--text);
+  border-radius: 3px; padding: 4px 6px; font-size: 0.75rem;
+  font-family: 'Noto Sans JP', sans-serif; outline: none; width: 100%;
+}
+.detail-select option { background: var(--surface); }
+.detail-input {
+  background: var(--surface); border: 1px solid var(--border); color: var(--text);
+  border-radius: 3px; padding: 4px 6px; font-size: 0.75rem; width: 100%;
+  font-family: 'DM Mono', monospace; outline: none;
+}
+.detail-input:focus, .detail-select:focus { border-color: var(--border2); }
+.detail-note-input {
+  background: var(--surface); border: 1px solid var(--border); color: var(--text);
+  border-radius: 3px; padding: 4px 6px; font-size: 0.72rem; width: 100%;
+  font-family: 'Noto Sans JP', sans-serif; outline: none;
+}
+.detail-note-input:focus { border-color: var(--border2); }
+.detail-del-btn {
+  background: none; border: none; color: var(--text3); cursor: pointer;
+  font-size: 0.9rem; padding: 2px 4px; border-radius: 3px; transition: all 0.15s;
+}
+.detail-del-btn:hover { color: #ff6b5b; background: rgba(231,76,60,0.1); }
+.add-detail-btn {
+  background: none; border: 1px dashed var(--border2); color: var(--text3);
+  border-radius: 4px; padding: 5px 12px; cursor: pointer; font-size: 0.72rem;
+  font-family: 'Noto Sans JP', sans-serif; margin-top: 6px; width: 100%;
+  transition: all 0.2s; letter-spacing: 0.06em;
+}
+.add-detail-btn:hover { border-color: var(--text2); color: var(--text2); }
+.detail-section-head {
+  font-size: 0.68rem; letter-spacing: 0.1em; padding: 10px 0 4px;
+  border-bottom: 1px solid var(--border); margin-bottom: 4px; display: flex; align-items: center; gap: 6px;
+}
+.detail-section-head.cost-head   { color: #e74c3c; }
+.detail-section-head.profit-head { color: #58d68d; }
+.detail-total {
+  text-align: right; font-family: 'DM Mono', monospace;
+  font-size: 0.82rem; font-weight: 500; padding: 6px 4px 2px;
+}
+.detail-total.cost-total   { color: #e74c3c; }
+.detail-total.profit-total { color: #58d68d; }
+.kaizen-section-head {
+  font-size: 0.68rem; color: var(--text3); letter-spacing: 0.12em;
+  margin: 16px 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--border);
+}
+.cost-profit-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+}
+.cost-field { border-left: 3px solid rgba(231,76,60,0.5); padding-left: 8px; }
+.profit-field { border-left: 3px solid rgba(39,174,96,0.5); padding-left: 8px; }
+
 /* ─── スマホ対応 ─── */
 .btn-icon-only { display: none; }
 
@@ -655,6 +806,7 @@
     <button class="view-tab active" onclick="switchView('staff',this)">スタッフ別</button>
     <button class="view-tab" onclick="switchView('deadline',this)">締め切り順</button>
     <button class="view-tab" onclick="switchView('approval',this)">承認待ち</button>
+    <button class="view-tab" onclick="switchView('kaizen',this)">カイゼン</button>
   </div>
 
   <!-- スタッフビュー -->
@@ -687,6 +839,101 @@
   <div id="approval-view">
     <p class="section-title">承認待ちタスク</p>
     <div class="approval-list" id="approval-list"></div>
+  </div>
+
+  <!-- カイゼンビュー -->
+  <div id="kaizen-view" style="display:none">
+  <div class="kaizen-filter-bar">
+    <button class="add-task-btn" onclick="openKaizenModal()">＋ イベント追加</button>
+  </div>
+  <div class="kaizen-grid" id="kaizen-grid"></div>
+  </div>
+
+</div><!-- /main-wrap -->
+
+<!-- カイゼン：イベント作成・編集モーダル -->
+<div class="modal-overlay" id="kaizen-modal">
+  <div class="modal" style="max-width:480px">
+    <button class="modal-close" onclick="closeKaizenModal()">✕</button>
+    <div class="modal-title">
+      <div class="modal-title-bar" style="background:#9b59b6"></div>
+      <span id="kaizen-modal-title">イベントを追加</span>
+    </div>
+    <div class="form-row">
+      <label class="form-label">イベント名 <span style="color:var(--accent)">*</span></label>
+      <input class="form-input" id="kf-title" type="text" placeholder="例：〇〇展示会2025">
+    </div>
+    <div class="form-row">
+      <label class="form-label">実施日</label>
+      <input class="form-input date-picker" id="kf-date" type="date">
+    </div>
+    <div class="form-row">
+      <label class="form-label">概要・目的</label>
+      <textarea class="form-textarea" id="kf-desc" placeholder="イベントの目的・概要…" style="min-height:56px"></textarea>
+    </div>
+    <div class="form-row-grid">
+      <div class="form-row">
+        <label class="form-label">予算コスト（円）</label>
+        <input class="form-input" id="kf-budget-cost" type="number" placeholder="0" min="0">
+      </div>
+      <div class="form-row">
+        <label class="form-label">目標利益（円）</label>
+        <input class="form-input" id="kf-target-profit" type="number" placeholder="0" min="0">
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn-cancel" onclick="closeKaizenModal()">キャンセル</button>
+      <button class="btn-submit" style="background:#9b59b6" onclick="submitKaizen()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- カイゼン：実績入力モーダル -->
+<div class="modal-overlay" id="kaizen-result-modal">
+  <div class="modal" style="max-width:540px">
+    <button class="modal-close" onclick="closeKaizenResultModal()">✕</button>
+    <div class="modal-title">
+      <div class="modal-title-bar" style="background:#27ae60"></div>
+      <span>実績を入力</span>
+    </div>
+    <p id="kaizen-result-event-name" style="font-size:0.8rem;color:var(--text2);margin-bottom:4px"></p>
+
+    <!-- コスト明細 -->
+    <div class="detail-section-head cost-head">💸 コスト明細</div>
+    <table class="detail-table" id="cost-detail-table">
+      <thead>
+        <tr>
+          <th style="width:34%">カテゴリ</th>
+          <th style="width:26%">金額（円）</th>
+          <th>備考（その他は必須）</th>
+          <th style="width:28px"></th>
+        </tr>
+      </thead>
+      <tbody id="cost-detail-body"></tbody>
+    </table>
+    <div class="detail-total cost-total" id="cost-detail-total"></div>
+    <button class="add-detail-btn" onclick="addDetailRow('cost')">＋ コスト行を追加</button>
+
+    <!-- 利益明細 -->
+    <div class="detail-section-head profit-head" style="margin-top:14px">📈 利益明細</div>
+    <table class="detail-table" id="profit-detail-table">
+      <thead>
+        <tr>
+          <th style="width:34%">カテゴリ</th>
+          <th style="width:26%">金額（円）</th>
+          <th>備考（その他は必須）</th>
+          <th style="width:28px"></th>
+        </tr>
+      </thead>
+      <tbody id="profit-detail-body"></tbody>
+    </table>
+    <div class="detail-total profit-total" id="profit-detail-total"></div>
+    <button class="add-detail-btn" onclick="addDetailRow('profit')">＋ 利益行を追加</button>
+
+    <div class="form-actions">
+      <button class="btn-cancel" onclick="closeKaizenResultModal()">キャンセル</button>
+      <button class="btn-submit" style="background:#27ae60" onclick="submitKaizenResult()">保存</button>
+    </div>
   </div>
 </div>
 
@@ -806,6 +1053,29 @@ function loadState() {
     return { ...saved, staff: base.staff, currentUser: saved.currentUser || base.currentUser };
   } catch(e) { return defaultState(); }
 }
+/* ═══════════════════════════════════════════
+   カイゼン データ
+═══════════════════════════════════════════ */
+function loadKaizenState() {
+  try {
+    const s = localStorage.getItem('kaizenData_v2');
+    return s ? JSON.parse(s) : { events: [] };
+  } catch(e) { return { events: [] }; }
+}
+function saveKaizenState() {
+  localStorage.setItem('kaizenData_v2', JSON.stringify(kaizenState));
+}
+let kaizenState = loadKaizenState();
+let _editingKaizenId = null;
+let _resultKaizenId  = null;
+
+const COST_CATEGORIES   = ['人件費','会場費','広告費','制作費','交通費','その他'];
+const PROFIT_CATEGORIES = ['売上増加','新規顧客獲得','既存顧客深耕','ブランド認知','その他'];
+
+function sumDetails(rows) {
+  return (rows||[]).reduce((s,r) => s + (Number(r.amount)||0), 0);
+}
+
 function saveState() {
   localStorage.setItem('taskManager_v2', JSON.stringify(state));
 }
@@ -1428,6 +1698,7 @@ function switchView(view, btn) {
   document.getElementById('staff-view').style.display    = view==='staff'    ? 'grid' : 'none';
   document.getElementById('deadline-view').style.display = view==='deadline' ? 'block': 'none';
   document.getElementById('approval-view').style.display = view==='approval' ? 'block': 'none';
+  document.getElementById('kaizen-view').style.display   = view==='kaizen'   ? 'block': 'none';
   renderAll();
 }
 
@@ -1435,6 +1706,7 @@ function renderAll() {
   renderStaffView();
   renderDeadlineView();
   renderApprovalView();
+  renderKaizenView();
   checkDeadlineAlerts();
   renderNotifBadge();
   renderNotifPanel();
@@ -1475,6 +1747,307 @@ function selectUserAndClose(name) {
   saveState();
   renderAll();
   syncNotifications();
+}
+
+/* ═══════════════════════════════════════════
+   カイゼン 描画・操作
+═══════════════════════════════════════════ */
+function fmtYen(v) {
+  if (v == null || v === '') return null;
+  return '¥' + Number(v).toLocaleString();
+}
+
+function renderKaizenView() {
+  const grid = document.getElementById('kaizen-grid');
+  if (!grid) return;
+  const events = kaizenState.events;
+  if (!events.length) {
+    grid.innerHTML = '<div class="empty-state" style="padding:40px;grid-column:1/-1">イベントがありません</div>';
+    return;
+  }
+  grid.innerHTML = events.map((ev, idx) => {
+    const totalCost   = sumDetails(ev.costRows);
+    const totalProfit = sumDetails(ev.profitRows);
+    const hasCost     = (ev.costRows||[]).length > 0;
+    const hasProfit   = (ev.profitRows||[]).length > 0;
+    const roi = (totalCost > 0 && hasProfit)
+      ? ((totalProfit - totalCost) / totalCost * 100).toFixed(1) : null;
+    const roiHtml = roi !== null
+      ? `<span class="kpi-roi ${Number(roi)>=0?'roi-plus':'roi-minus'}">${Number(roi)>=0?'+':''}${roi}% ROI</span>`
+      : '';
+    const costBreakdown   = (ev.costRows||[]).map(r =>
+      `${r.category}${r.note&&r.category==='その他'?'('+r.note+')':''} : ${fmtYen(r.amount)}`
+    ).join('<br>');
+    const profitBreakdown = (ev.profitRows||[]).map(r =>
+      `${r.category}${r.note&&r.category==='その他'?'('+r.note+')':''} : ${fmtYen(r.amount)}`
+    ).join('<br>');
+    const comments = (ev.comments||[]).slice(-3);
+    return `
+    <div class="kaizen-card" style="animation-delay:${idx*0.05}s">
+      <div class="kaizen-card-header">
+        <div style="flex:1">
+          <div class="kaizen-card-title">${ev.title}</div>
+          <div class="kaizen-card-meta">
+            ${ev.date ? `<span>📅 ${ev.date}</span>` : ''}
+            ${ev.desc ? `<span>${ev.desc}</span>` : ''}
+          </div>
+        </div>
+      </div>
+      <div class="kaizen-kpi-section">
+        <div class="kaizen-kpi-block kpi-cost">
+          <div class="kpi-label">💸 コスト合計</div>
+          ${hasCost
+            ? `<div class="kpi-value cost-val">${fmtYen(totalCost)}</div>
+               <div class="kpi-breakdown">${costBreakdown}</div>
+               ${ev.budgetCost!=null?`<div class="kpi-sub">予算：${fmtYen(ev.budgetCost)}</div>`:''}`
+            : `<div class="kpi-value none-val">未入力</div>
+               ${ev.budgetCost!=null?`<div class="kpi-sub">予算：${fmtYen(ev.budgetCost)}</div>`:''}`}
+        </div>
+        <div class="kaizen-kpi-block kpi-profit">
+          <div class="kpi-label">📈 利益合計</div>
+          ${hasProfit
+            ? `<div class="kpi-value profit-val">${fmtYen(totalProfit)}</div>
+               <div class="kpi-breakdown">${profitBreakdown}</div>
+               ${ev.targetProfit!=null?`<div class="kpi-sub">目標：${fmtYen(ev.targetProfit)}</div>`:''}
+               ${roiHtml}`
+            : `<div class="kpi-value none-val">未入力</div>
+               ${ev.targetProfit!=null?`<div class="kpi-sub">目標：${fmtYen(ev.targetProfit)}</div>`:''}`}
+        </div>
+      </div>
+      <div class="kaizen-fb-section">
+        <div class="kaizen-fb-title">💬 フィードバック（${(ev.comments||[]).length}件）</div>
+        ${comments.map(c=>`
+          <div class="kaizen-comment">
+            <div class="kaizen-comment-meta">
+              <span class="kaizen-comment-author">${c.author}</span>
+              <span>${c.time}</span>
+            </div>
+            ${c.text}
+          </div>`).join('')}
+        ${(ev.comments||[]).length>3
+          ?`<div style="font-size:0.68rem;color:var(--text3);margin-bottom:4px">…他 ${ev.comments.length-3} 件</div>`:''}
+        <div class="kaizen-add-comment">
+          <textarea id="kc-${ev.id}" placeholder="達成要因・未達成要因・改善策など…"></textarea>
+          <button onclick="postKaizenComment('${ev.id}')">投稿</button>
+        </div>
+      </div>
+      <div class="kaizen-card-actions">
+        <button class="task-btn btn-edit" onclick="openKaizenResultModal('${ev.id}')">📊 実績入力</button>
+        <button class="task-btn btn-edit" onclick="openKaizenEditModal('${ev.id}')">編集</button>
+        <button class="task-btn btn-delete" onclick="confirmDeleteKaizen('${ev.id}')">削除</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ── 明細行 ── */
+function addDetailRow(type, row) {
+  const tbody = document.getElementById(`${type}-detail-body`);
+  const cats  = type === 'cost' ? COST_CATEGORIES : PROFIT_CATEGORIES;
+  const rowId = `dr-${type}-${Date.now()}-${Math.random().toString(36).slice(2,5)}`;
+  const cat   = row?.category || cats[0];
+  const amt   = row?.amount   != null ? row.amount : '';
+  const note  = row?.note     || '';
+  const tr    = document.createElement('tr');
+  tr.id = rowId;
+  tr.innerHTML = `
+    <td>
+      <select class="detail-select" onchange="onCatChange(this,'${rowId}','${type}')">
+        ${cats.map(c=>`<option value="${c}" ${c===cat?'selected':''}>${c}</option>`).join('')}
+      </select>
+    </td>
+    <td>
+      <input class="detail-input" type="number" min="0" placeholder="0"
+        value="${amt}" oninput="updateDetailTotal('${type}')">
+    </td>
+    <td>
+      <input class="detail-note-input" type="text"
+        placeholder="${cat==='その他'?'内容を入力（必須）':'任意メモ'}"
+        value="${note}" id="note-${rowId}"
+        ${cat==='その他'?'':'style="color:var(--text3)"'}>
+    </td>
+    <td>
+      <button class="detail-del-btn" onclick="delDetailRow('${rowId}','${type}')">✕</button>
+    </td>`;
+  tbody.appendChild(tr);
+  updateDetailTotal(type);
+}
+
+function onCatChange(sel, rowId, type) {
+  const noteInput = document.getElementById('note-'+rowId);
+  if (!noteInput) return;
+  if (sel.value === 'その他') {
+    noteInput.placeholder = '内容を入力（必須）';
+    noteInput.style.color = 'var(--text)';
+  } else {
+    noteInput.placeholder = '任意メモ';
+    noteInput.style.color = 'var(--text3)';
+  }
+}
+
+function delDetailRow(rowId, type) {
+  document.getElementById(rowId)?.remove();
+  updateDetailTotal(type);
+}
+
+function updateDetailTotal(type) {
+  const tbody = document.getElementById(`${type}-detail-body`);
+  let total = 0;
+  tbody.querySelectorAll('input[type=number]').forEach(inp => { total += Number(inp.value)||0; });
+  const el = document.getElementById(`${type}-detail-total`);
+  el.textContent = total > 0 ? `合計：¥${total.toLocaleString()}` : '';
+}
+
+function collectDetailRows(type) {
+  const tbody = document.getElementById(`${type}-detail-body`);
+  const rows  = [];
+  tbody.querySelectorAll('tr').forEach(tr => {
+    const cat    = tr.querySelector('select')?.value || '';
+    const amount = Number(tr.querySelector('input[type=number]')?.value) || 0;
+    const note   = tr.querySelector('input[type=text]')?.value?.trim() || '';
+    if (cat && amount > 0) rows.push({ category: cat, amount, note });
+  });
+  return rows;
+}
+
+/* ── モーダル開閉 ── */
+function openKaizenModal() {
+  _editingKaizenId = null;
+  document.getElementById('kaizen-modal-title').textContent = 'イベントを追加';
+  document.getElementById('kf-title').value          = '';
+  document.getElementById('kf-date').value           = '';
+  document.getElementById('kf-desc').value           = '';
+  document.getElementById('kf-budget-cost').value    = '';
+  document.getElementById('kf-target-profit').value  = '';
+  document.getElementById('kaizen-modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function openKaizenEditModal(id) {
+  const ev = kaizenState.events.find(e=>e.id===id);
+  if (!ev) return;
+  _editingKaizenId = id;
+  document.getElementById('kaizen-modal-title').textContent = 'イベントを編集';
+  document.getElementById('kf-title').value          = ev.title;
+  document.getElementById('kf-date').value           = ev.date  || '';
+  document.getElementById('kf-desc').value           = ev.desc  || '';
+  document.getElementById('kf-budget-cost').value    = ev.budgetCost   != null ? ev.budgetCost   : '';
+  document.getElementById('kf-target-profit').value  = ev.targetProfit != null ? ev.targetProfit : '';
+  document.getElementById('kaizen-modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeKaizenModal() {
+  document.getElementById('kaizen-modal').classList.remove('open');
+  document.body.style.overflow = '';
+  _editingKaizenId = null;
+}
+
+function openKaizenResultModal(id) {
+  const ev = kaizenState.events.find(e=>e.id===id);
+  if (!ev) return;
+  _resultKaizenId = id;
+  document.getElementById('kaizen-result-event-name').textContent = `イベント：${ev.title}`;
+  const costBody = document.getElementById('cost-detail-body');
+  costBody.innerHTML = '';
+  (ev.costRows||[]).forEach(r => addDetailRow('cost', r));
+  if (!(ev.costRows||[]).length) addDetailRow('cost');
+  const profitBody = document.getElementById('profit-detail-body');
+  profitBody.innerHTML = '';
+  (ev.profitRows||[]).forEach(r => addDetailRow('profit', r));
+  if (!(ev.profitRows||[]).length) addDetailRow('profit');
+  updateDetailTotal('cost');
+  updateDetailTotal('profit');
+  document.getElementById('kaizen-result-modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeKaizenResultModal() {
+  document.getElementById('kaizen-result-modal').classList.remove('open');
+  document.body.style.overflow = '';
+  _resultKaizenId = null;
+}
+
+/* ── CRUD ── */
+function submitKaizen() {
+  const title = document.getElementById('kf-title').value.trim();
+  if (!title) { showToast('イベント名を入力してください', 'error'); return; }
+  const budgetCostEl   = document.getElementById('kf-budget-cost').value;
+  const targetProfitEl = document.getElementById('kf-target-profit').value;
+  const data = {
+    title,
+    date:         document.getElementById('kf-date').value || null,
+    desc:         document.getElementById('kf-desc').value.trim(),
+    budgetCost:   budgetCostEl   !== '' ? Number(budgetCostEl)   : null,
+    targetProfit: targetProfitEl !== '' ? Number(targetProfitEl) : null,
+  };
+  const editingId = _editingKaizenId;
+  closeKaizenModal();
+  if (editingId) {
+    const idx = kaizenState.events.findIndex(e=>e.id===editingId);
+    if (idx !== -1) { kaizenState.events[idx] = { ...kaizenState.events[idx], ...data }; }
+    showToast(`「${title}」を更新しました`, 'info');
+  } else {
+    kaizenState.events.unshift({
+      id: 'k'+Date.now(), ...data,
+      comments: [], costRows: [], profitRows: []
+    });
+    showToast(`「${title}」を追加しました`, 'success');
+  }
+  saveKaizenState();
+  renderKaizenView();
+}
+
+function submitKaizenResult() {
+  const id = _resultKaizenId;
+  const ev = kaizenState.events.find(e=>e.id===id);
+  if (!ev) return;
+  const costRows   = collectDetailRows('cost');
+  const profitRows = collectDetailRows('profit');
+  const costOther   = costRows.find(r=>r.category==='その他'&&!r.note);
+  const profitOther = profitRows.find(r=>r.category==='その他'&&!r.note);
+  if (costOther || profitOther) {
+    showToast('「その他」カテゴリの備考を入力してください', 'error'); return;
+  }
+  ev.costRows   = costRows;
+  ev.profitRows = profitRows;
+  closeKaizenResultModal();
+  saveKaizenState();
+  renderKaizenView();
+  showToast(`「${ev.title}」の実績を更新しました`, 'success');
+}
+
+function postKaizenComment(id) {
+  const textarea = document.getElementById('kc-'+id);
+  const text = textarea ? textarea.value.trim() : '';
+  if (!text) { showToast('コメントを入力してください', 'error'); return; }
+  const ev = kaizenState.events.find(e=>e.id===id);
+  if (!ev) return;
+  if (!ev.comments) ev.comments = [];
+  ev.comments.push({
+    author: currentStaff().name,
+    text,
+    time: new Date().toLocaleString('ja-JP',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})
+  });
+  saveKaizenState();
+  renderKaizenView();
+  showToast('フィードバックを投稿しました', 'success');
+}
+
+function confirmDeleteKaizen(id) {
+  const ev = kaizenState.events.find(e=>e.id===id);
+  openConfirm({
+    title: 'イベントの削除',
+    msg: `「${ev?.title}」を削除しますか？この操作は取り消せません。`,
+    okLabel: '削除する',
+    okColor: 'var(--urgent)',
+    onOk: () => {
+      kaizenState.events = kaizenState.events.filter(e=>e.id!==id);
+      saveKaizenState();
+      renderKaizenView();
+      showToast('イベントを削除しました', 'error');
+    }
+  });
 }
 
 function changeCurrentUser(name) {
