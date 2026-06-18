@@ -1126,13 +1126,14 @@ function gasPost(action, payload) {
 }
 
 async function gasPostAndSync(action, payload) {
-  showLoading(true);
+  // 裏でGAS保存（UIは既に更新済みのため待たない）
   try {
     await gasPost(action, payload);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    await syncFromGAS();
-  } finally {
-    showLoading(false);
+    // GAS反映後に静かに同期（UIには影響させない）
+    syncFromGAS().catch(() => {});
+  } catch(e) {
+    console.warn('GAS save failed:', action, e);
+    // 失敗してもUIはそのまま（次回syncで自動修正）
   }
 }
 
@@ -1517,12 +1518,24 @@ function completeTask(id) {
     okColor: 'var(--approve)',
     onOk: async () => {
       const assignee = staffById(t.assignee);
-      await gasPostAndSync('completeTask', {
-        id: t.id, title: t.title,
-        approver: t.approver, assignee: t.assignee,
-        assigneeName: assignee?.name
-      });
+      // 楽観的更新
+      const backup = [...state.tasks];
+      const target = state.tasks.find(x=>x.id===t.id);
+      if (target) target.status = t.approver ? 'review' : 'done';
+      saveState(); renderAll();
       showToast(t.approver ? `完了報告しました` : `「${t.title}」を完了しました`, 'success');
+      // 裏でGAS
+      try {
+        await gasPost('completeTask', {
+          id: t.id, title: t.title,
+          approver: t.approver, assignee: t.assignee,
+          assigneeName: assignee?.name
+        });
+        syncFromGAS().catch(() => {});
+      } catch(e) {
+        state.tasks = backup; saveState(); renderAll();
+        showToast('保存に失敗しました。元に戻しました', 'warning');
+      }
     }
   });
 }
@@ -1537,11 +1550,21 @@ function approveTask(id) {
     okLabel: '承認・完了',
     okColor: 'var(--approve)',
     onOk: async () => {
-      await gasPostAndSync('approveTask', {
-        id: t.id, title: t.title,
-        assignee: t.assignee, assigneeName: assignee?.name
-      });
+      const backup = [...state.tasks];
+      const target = state.tasks.find(x=>x.id===t.id);
+      if (target) target.status = 'done';
+      saveState(); renderAll();
       showToast(`「${t.title}」を承認・完了しました`, 'success');
+      try {
+        await gasPost('approveTask', {
+          id: t.id, title: t.title,
+          assignee: t.assignee, assigneeName: assignee?.name
+        });
+        syncFromGAS().catch(() => {});
+      } catch(e) {
+        state.tasks = backup; saveState(); renderAll();
+        showToast('保存に失敗しました。元に戻しました', 'warning');
+      }
     }
   });
 }
@@ -1556,11 +1579,21 @@ function rejectTask(id) {
     okLabel: '差し戻す',
     okColor: 'var(--deadline)',
     onOk: async () => {
-      await gasPostAndSync('rejectTask', {
-        id: t.id, title: t.title,
-        assignee: t.assignee, assigneeName: assignee?.name
-      });
+      const backup = [...state.tasks];
+      const target = state.tasks.find(x=>x.id===t.id);
+      if (target) target.status = 'active';
+      saveState(); renderAll();
       showToast(`「${t.title}」を差し戻しました`, 'warning');
+      try {
+        await gasPost('rejectTask', {
+          id: t.id, title: t.title,
+          assignee: t.assignee, assigneeName: assignee?.name
+        });
+        syncFromGAS().catch(() => {});
+      } catch(e) {
+        state.tasks = backup; saveState(); renderAll();
+        showToast('保存に失敗しました。元に戻しました', 'warning');
+      }
     }
   });
 }
@@ -1599,12 +1632,19 @@ function showLoading(show) {
 
 async function deleteTask(id) {
   const t = state.tasks.find(t=>t.id===id);
+  if (!t) return;
+  // 楽観的削除
+  const backup = [...state.tasks];
+  state.tasks = state.tasks.filter(t=>t.id!==id);
+  saveState(); renderAll();
+  showToast(`「${t.title}」を削除しました`, 'error');
+  // 裏でGAS
   try {
-    await gasPostAndSync('deleteTask', { id });
-    showToast(`「${t?.title}」を削除しました`, 'error');
+    await gasPost('deleteTask', { id });
+    syncFromGAS().catch(() => {});
   } catch(e) {
-    showToast('削除に失敗しました', 'error');
-    console.error('deleteTask error:', e);
+    state.tasks = backup; saveState(); renderAll();
+    showToast('削除に失敗しました。元に戻しました', 'error');
   }
 }
 
@@ -1673,17 +1713,33 @@ async function submitTask() {
   const editingId = _editingId; // closeTaskModal前に退避
   closeTaskModal();
 
-  try {
-    if (editingId) {
-      await gasPostAndSync('updateTask', { ...payload, id: editingId });
-      showToast(`「${title}」を更新しました`, 'info');
-    } else {
-      await gasPostAndSync('addTask', payload);
-      showToast(`「${title}」を${assigneeStaff?.name}に追加しました`, 'success');
+  const backup = [...state.tasks];
+  if (editingId) {
+    const idx = state.tasks.findIndex(x=>x.id===editingId);
+    if (idx !== -1) state.tasks[idx] = { ...state.tasks[idx], ...payload, id: editingId };
+    saveState(); renderAll();
+    showToast(`「${title}」を更新しました`, 'info');
+    try {
+      await gasPost('updateTask', { ...payload, id: editingId });
+      syncFromGAS().catch(() => {});
+    } catch(e) {
+      state.tasks = backup; saveState(); renderAll();
+      showToast('保存に失敗しました。元に戻しました', 'error');
     }
-  } catch(e) {
-    showToast('保存に失敗しました。再度お試しください', 'error');
-    console.error('submitTask error:', e);
+  } else {
+    const tempId = genId();
+    const newTask = { ...payload, id: tempId, status: 'active' };
+    state.tasks.push(newTask);
+    saveState(); renderAll();
+    showToast(`「${title}」を${assigneeStaff?.name}に追加しました`, 'success');
+    try {
+      await gasPost('addTask', payload);
+      // GAS発行のIDで置き換え
+      syncFromGAS().catch(() => {});
+    } catch(e) {
+      state.tasks = backup; saveState(); renderAll();
+      showToast('保存に失敗しました。元に戻しました', 'error');
+    }
   }
 }
 
