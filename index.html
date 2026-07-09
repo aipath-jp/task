@@ -807,6 +807,7 @@
     <button class="view-tab" onclick="switchView('deadline',this)">締め切り順</button>
     <button class="view-tab" onclick="switchView('approval',this)">承認待ち</button>
     <button class="view-tab" onclick="switchView('kaizen',this)">カイゼン</button>
+    <button class="view-tab" onclick="switchView('demo',this)">デモ機管理</button>
   </div>
 
   <!-- スタッフビュー -->
@@ -847,6 +848,18 @@
     <button class="add-task-btn" onclick="openKaizenModal()">＋ イベント追加</button>
   </div>
   <div class="kaizen-grid" id="kaizen-grid"></div>
+  </div>
+
+  <!-- デモ機管理ビュー -->
+  <div id="demo-view" style="display:none">
+    <div id="demo-overdue-banner" class="kaizen-filter-bar" style="display:none; background:rgba(231,76,60,0.1); border:1px solid rgba(231,76,60,0.3); border-radius:6px; padding:10px 16px; color:#ff6b5b; font-size:0.78rem;"></div>
+    <!-- After -->
+<div class="kaizen-filter-bar">
+  <button class="add-task-btn" onclick="openDemoModal()">＋ デモ機貸出を追加</button>
+  <button class="task-btn btn-edit" style="flex:none; padding:7px 16px;" onclick="loadAllDemoUnits()">📋 全データ取得（返却済みも含む）</button>
+  <span id="demo-mode-label" style="font-size:0.72rem; color:var(--text3);"></span>
+</div>
+    <div id="demo-list"></div>
   </div>
 
 </div><!-- /main-wrap -->
@@ -937,6 +950,43 @@
   </div>
 </div>
 
+<!-- デモ機貸出 追加/編集モーダル -->
+<div class="modal-overlay" id="demo-modal">
+  <div class="modal" style="max-width:480px">
+    <button class="modal-close" onclick="closeDemoModal()">✕</button>
+    <div class="modal-title">
+      <div class="modal-title-bar" style="background:#3498db"></div>
+      <span id="demo-modal-title">デモ機貸出を追加</span>
+    </div>
+    <div class="form-row">
+      <label class="form-label">名前（貸出先） <span style="color:var(--accent)">*</span></label>
+      <input class="form-input" id="df-name" type="text" placeholder="例：〇〇株式会社 山田様">
+    </div>
+    <div class="form-row">
+      <label class="form-label">デモ機番号</label>
+      <input class="form-input" id="df-unitno" type="text" placeholder="例：DEMO-001">
+    </div>
+    <div class="form-row-grid">
+      <div class="form-row">
+        <label class="form-label">デモ機発送日</label>
+        <input class="form-input date-picker" id="df-shipdate" type="date">
+      </div>
+      <div class="form-row">
+        <label class="form-label">修理品発送日</label>
+        <input class="form-input date-picker" id="df-repairdate" type="date">
+      </div>
+    </div>
+    <div class="form-row">
+      <label class="form-label">デモ機返却日（返却済みの場合のみ入力）</label>
+      <input class="form-input date-picker" id="df-returndate" type="date">
+    </div>
+    <div class="form-actions">
+      <button class="btn-cancel" onclick="closeDemoModal()">キャンセル</button>
+      <button class="btn-submit" style="background:#3498db" onclick="submitDemo()">保存</button>
+    </div>
+  </div>
+</div>
+
 <!-- タスク追加/編集モーダル -->
 <div class="modal-overlay" id="task-modal">
   <div class="modal">
@@ -1020,6 +1070,7 @@
    データ定義
 ═══════════════════════════════════════════ */
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbw14Ux8tga5XMvG0hP1VRTWQj4ElQKMq78Z8fCI1nRvDWlEGsimDyc0cRSWtEbDEsRCbA/exec';
+const DEMO_GAS_URL = 'https://script.google.com/macros/s/AKfycbyek5-mbJHbHGO9_OTBHrotRS5j64Vx-2x1YmgqiqVTBT7p5JiPbYXtE9qXeGbBML8V-A/exec'; // デモ機管理用（別スクリプト）
 
 const STAFF_COLORS = [
   '#e74c3c','#e67e22','#f1c40f','#2ecc71',
@@ -1076,6 +1127,25 @@ function sumDetails(rows) {
   return (rows||[]).reduce((s,r) => s + (Number(r.amount)||0), 0);
 }
 
+/* ═══════════════════════════════════════════
+   デモ機管理 データ（GASのスプレッドシートが正）
+═══════════════════════════════════════════ */
+const DEMO_DAYS_THRESHOLD = 14; // 修理品発送日からこの日数を過ぎたら遅延扱い
+function loadDemoState() {
+  try {
+    const s = localStorage.getItem('demoUnits_v1');
+    return s ? JSON.parse(s) : { units: [] };
+  } catch(e) { return { units: [] }; }
+}
+function saveDemoState() {
+  localStorage.setItem('demoUnits_v1', JSON.stringify(demoState));
+}
+let demoState = loadDemoState();
+let _editingDemoRow = null;
+let demoShowAll  = false; // false=未返却のみ（デフォルト）, true=全件表示
+let _demoSyncSeq = 0;     // 古いレスポンスで上書きしないための連番
+let _demoSyncing = false; // 二重リクエスト防止
+
 function saveState() {
   localStorage.setItem('taskManager_v2', JSON.stringify(state));
 }
@@ -1084,13 +1154,18 @@ function saveState() {
    GAS通信
 ═══════════════════════════════════════════ */
 // GET（JSONP）
-function gasGet(action, params = {}) {
+// After
+let _gasCbSeq = 0; // コールバック名の衝突防止用の連番
+
+function gasGet(action, params = {}, baseUrl = GAS_URL) {
   return new Promise((resolve, reject) => {
-    const cbName = '_cb_' + Date.now();
+    // Date.now()だけだとタブ復帰直後などに複数リクエストが同一ミリ秒で発行され、
+    // コールバック名が衝突→別アクションのレスポンスを取り違える原因になっていた
+    const cbName = '_cb_' + Date.now() + '_' + (_gasCbSeq++);
     const query = new URLSearchParams({ action, callback: cbName, _t: Date.now(), ...params }).toString();
     const script = document.createElement('script');
 
-    console.log('[GAS] 送信:', action, `${GAS_URL}?${query}`);
+    console.log('[GAS] 送信:', action, `${baseUrl}?${query}`);
 
     const timer = setTimeout(() => {
       delete window[cbName];
@@ -1112,18 +1187,22 @@ function gasGet(action, params = {}) {
       console.error('[GAS] スクリプトエラー:', action, err);
       reject('network error');
     };
-    script.src = `${GAS_URL}?${query}`;
+    script.src = `${baseUrl}?${query}`;
     document.head.appendChild(script);
   });
 }
 
 // POST（JSONP）
-function gasPost(action, payload) {
+function gasPost(action, payload, baseUrl = GAS_URL) {
   const cleaned = Object.fromEntries(
     Object.entries(payload).map(([k, v]) => [k, v == null ? '' : v])
   );
-  return gasGet(action, cleaned);
+  return gasGet(action, cleaned, baseUrl);
 }
+
+// デモ機管理スクリプト（別URL）向けのショートハンド
+function demoGasGet(action, params = {}) { return gasGet(action, params, DEMO_GAS_URL); }
+function demoGasPost(action, payload = {}) { return gasPost(action, payload, DEMO_GAS_URL); }
 
 async function gasPostAndSync(action, payload) {
   // 裏でGAS保存（UIは既に更新済みのため待たない）
@@ -1205,6 +1284,46 @@ async function syncNotifications() {
   } catch(e) {
     console.warn('notification sync failed:', e);
   }
+}
+
+// GASからデモ機貸出一覧を取得（デモ機専用スクリプト）
+// After
+async function syncDemoFromGAS(showAll = demoShowAll) {
+  if (_demoSyncing) return; // 前回のリクエスト完了前は発行しない（負荷軽減・重複防止）
+  _demoSyncing = true;
+  const mySeq = ++_demoSyncSeq;
+  try {
+    // onlyUnreturned=true のときはGAS側で未返却データのみに絞って返してもらう想定
+    // （デフォルトで全件を毎回取得しないことでGAS側の負荷を下げる）
+    const units = await demoGasGet('getDemoUnits', { onlyUnreturned: showAll ? 'false' : 'true' });
+
+    // 自分より後に発行されたリクエストが既に反映済みなら、この結果は古いので破棄
+    if (mySeq !== _demoSyncSeq) return;
+
+    if (!Array.isArray(units)) {
+      console.warn('getDemoUnits returned non-array:', units);
+      return;
+    }
+    demoState.units = units;
+    demoShowAll = showAll;
+    saveDemoState();
+    renderDemoView();
+  } catch(e) {
+    console.warn('demo units sync failed, using local cache:', e);
+  } finally {
+    if (mySeq === _demoSyncSeq) _demoSyncing = false;
+  }
+}
+
+// 「全データ取得」ボタン用（返却済みも含めて全件取得）
+function loadAllDemoUnits() {
+  showToast('全データを取得しています…', 'info');
+  syncDemoFromGAS(true);
+}
+
+// 未返却のみの表示に戻す
+function loadActiveDemoUnits() {
+  syncDemoFromGAS(false);
 }
 
 /* ═══════════════════════════════════════════
@@ -1755,6 +1874,7 @@ function switchView(view, btn) {
   document.getElementById('deadline-view').style.display = view==='deadline' ? 'block': 'none';
   document.getElementById('approval-view').style.display = view==='approval' ? 'block': 'none';
   document.getElementById('kaizen-view').style.display   = view==='kaizen'   ? 'block': 'none';
+  document.getElementById('demo-view').style.display     = view==='demo'    ? 'block': 'none';
   renderAll();
 }
 
@@ -1763,6 +1883,7 @@ function renderAll() {
   renderDeadlineView();
   renderApprovalView();
   renderKaizenView();
+  renderDemoView();
   checkDeadlineAlerts();
   renderNotifBadge();
   renderNotifPanel();
@@ -2106,6 +2227,155 @@ function confirmDeleteKaizen(id) {
   });
 }
 
+/* ═══════════════════════════════════════════
+   デモ機管理 描画・操作
+═══════════════════════════════════════════ */
+function renderDemoView() {
+  const list = document.getElementById('demo-list');
+  if (!list) return;
+
+  const modeLabel = document.getElementById('demo-mode-label');
+  if (modeLabel) {
+    modeLabel.textContent = demoShowAll
+      ? '（全件表示中）'
+      : '（未返却のみ表示中／全件は上のボタンから）';
+  }
+
+  const units = demoState.units || [];
+
+  // 遅延（修理品発送済み・未返却・14日以上経過）を検出してバナー表示
+  const overdue = units.filter(u => u.daysOverdue !== null && u.daysOverdue !== undefined && u.daysOverdue >= DEMO_DAYS_THRESHOLD);
+  const banner = document.getElementById('demo-overdue-banner');
+  if (overdue.length) {
+    banner.style.display = 'flex';
+    banner.innerHTML = `⚠️ 返却期限（発送から${DEMO_DAYS_THRESHOLD}日）を超過しているデモ機が ${overdue.length} 件あります`;
+  } else {
+    banner.style.display = 'none';
+  }
+
+  if (!units.length) {
+    list.innerHTML = '<div class="empty-state" style="padding:40px">デモ機貸出データがありません</div>';
+    return;
+  }
+
+  list.innerHTML = `
+  <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(340px,1fr)); gap:1.2rem;">
+  ${units.map(u => {
+    const isOverdue = u.daysOverdue !== null && u.daysOverdue !== undefined && u.daysOverdue >= DEMO_DAYS_THRESHOLD;
+    const isReturned = !!u.returnDate;
+    let statusHtml;
+    if (isReturned) {
+      statusHtml = `<span class="priority-badge" style="background:rgba(39,174,96,0.2);color:#58d68d;border:1px solid rgba(39,174,96,0.4)">返却済</span>`;
+    } else if (isOverdue) {
+      statusHtml = `<span class="priority-badge pb-urgent">${u.daysOverdue}日超過</span>`;
+    } else if (u.repairShipDate) {
+      statusHtml = `<span class="priority-badge pb-normal">返却待ち</span>`;
+    } else {
+      statusHtml = `<span class="priority-badge" style="background:rgba(100,100,120,0.15);color:var(--text3);border:1px solid var(--border)">貸出中</span>`;
+    }
+    return `
+    <div class="task-card ${isOverdue && !isReturned ? 'overdue' : ''}" style="cursor:default">
+      <div class="task-top">
+        <div class="task-title">${u.name}</div>
+        ${statusHtml}
+      </div>
+      <div class="task-meta">
+        ${u.unitNo ? `<span class="meta-item">🔧 デモ機番号：${u.unitNo}</span>` : ''}
+        ${u.shipDate ? `<span class="meta-item">📦 発送：${fmtDate(u.shipDate)}</span>` : ''}
+        ${u.repairShipDate ? `<span class="meta-item">🛠 修理品発送：${fmtDate(u.repairShipDate)}</span>` : ''}
+        ${u.returnDate ? `<span class="meta-item">✅ 返却：${fmtDate(u.returnDate)}</span>` : ''}
+      </div>
+      <div class="task-actions">
+        <button class="task-btn btn-edit" onclick="openDemoEditModal(${u.row})">編集</button>
+        <button class="task-btn btn-delete" onclick="confirmDeleteDemo(${u.row})">削除</button>
+      </div>
+    </div>`;
+  }).join('')}
+  </div>`;
+}
+
+function openDemoModal() {
+  _editingDemoRow = null;
+  document.getElementById('demo-modal-title').textContent = 'デモ機貸出を追加';
+  document.getElementById('df-name').value = '';
+  document.getElementById('df-unitno').value = '';
+  document.getElementById('df-shipdate').value = '';
+  document.getElementById('df-repairdate').value = '';
+  document.getElementById('df-returndate').value = '';
+  document.getElementById('demo-modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function openDemoEditModal(row) {
+  const u = (demoState.units||[]).find(x=>x.row===row);
+  if (!u) return;
+  _editingDemoRow = row;
+  document.getElementById('demo-modal-title').textContent = 'デモ機貸出を編集';
+  document.getElementById('df-name').value = u.name || '';
+  document.getElementById('df-unitno').value = u.unitNo || '';
+  document.getElementById('df-shipdate').value = u.shipDate || '';
+  document.getElementById('df-repairdate').value = u.repairShipDate || '';
+  document.getElementById('df-returndate').value = u.returnDate || '';
+  document.getElementById('demo-modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeDemoModal() {
+  document.getElementById('demo-modal').classList.remove('open');
+  document.body.style.overflow = '';
+  _editingDemoRow = null;
+}
+
+async function submitDemo() {
+  const name         = document.getElementById('df-name').value.trim();
+  const unitNo       = document.getElementById('df-unitno').value.trim();
+  const shipDate     = document.getElementById('df-shipdate').value;
+  const repairShipDate = document.getElementById('df-repairdate').value;
+  const returnDate   = document.getElementById('df-returndate').value;
+
+  if (!name) { showToast('名前を入力してください', 'error'); return; }
+
+  const editingRow = _editingDemoRow;
+  closeDemoModal();
+  showLoading(true);
+  try {
+    if (editingRow) {
+      await demoGasPost('updateDemoUnit', { row: editingRow, name, unitNo, shipDate, repairShipDate, returnDate });
+      showToast(`「${name}」を更新しました`, 'info');
+    } else {
+      await demoGasPost('addDemoUnit', { name, unitNo, shipDate, repairShipDate, returnDate });
+      showToast(`「${name}」を追加しました`, 'success');
+    }
+    await syncDemoFromGAS();
+  } catch(e) {
+    showToast('保存に失敗しました。通信状況をご確認ください', 'error');
+  } finally {
+    showLoading(false);
+  }
+}
+
+function confirmDeleteDemo(row) {
+  const u = (demoState.units||[]).find(x=>x.row===row);
+  openConfirm({
+    title: 'デモ機貸出データの削除',
+    msg: `「${u?.name}」の貸出データを削除しますか？この操作は取り消せません。`,
+    okLabel: '削除する',
+    okColor: 'var(--urgent)',
+    onOk: async () => {
+      showLoading(true);
+      try {
+        await demoGasPost('deleteDemoUnit', { row });
+        showToast('削除しました', 'error');
+        await syncDemoFromGAS();
+      } catch(e) {
+        showToast('削除に失敗しました', 'error');
+      } finally {
+        showLoading(false);
+      }
+    }
+  });
+}
+
 function changeCurrentUser(name) {
   state.currentUser = name;
   state.notifications = []; // 前ユーザーの通知をクリア
@@ -2155,10 +2425,12 @@ initUserSelect();
 renderAll();                      // まずローカルキャッシュで即時表示
 syncFromGAS();                    // GASから最新タスクを取得
 syncNotifications();              // 未読通知を取得
+syncDemoFromGAS();                // デモ機貸出データを取得
 periodicCheck();
 setInterval(periodicCheck, 60000);
 setInterval(syncFromGAS, 30000);          // 30秒おきにタスク同期
 setInterval(syncNotifications, 30000);    // 30秒おきに通知確認
+setInterval(syncDemoFromGAS, 30000);      // 30秒おきにデモ機データ同期
 </script>
 </body>
 </html>
