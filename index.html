@@ -981,6 +981,7 @@
   body > header, #deadline-banner, .view-tabs,
   #staff-view, #deadline-view, #approval-view, #kaizen-view, #demo-view,
   #repair-view .rp-toolbar, #repair-view .rp-editor,
+  #repair-view #rp-search-results,
   #toast-container, .modal-overlay, #loading-overlay,
   #notif-panel { display:none !important; }
   body{ background:#fff; }
@@ -988,9 +989,23 @@
   #repair-view .rp-layout{ padding:0; max-width:none; }
   #repair-view .preview-wrap{ display:block; }
   #repair-view .rp-page{
-    box-shadow:none; width:210mm; min-height:297mm;
-    margin:0; padding:16mm 16mm 14mm;
+    box-shadow:none; width:210mm; min-height:0;
+    margin:0; padding:10mm 12mm 10mm;
+    font-size:10px;
   }
+  #repair-view .doc-header .brand{ font-size:16px; }
+  #repair-view .doc-header .doc-title{ font-size:18px; }
+  #repair-view .meta-table td{ padding:3px 6px; }
+  #repair-view .block-box-lg{
+    padding:6px 8px; min-height:28px;
+    font-size:13px; line-height:1.5;
+  }
+  #repair-view .block-box{ padding:4px 8px; min-height:18px; }
+  #repair-view .section-title{ margin:8px 0 3px; font-size:11px; }
+  #repair-view .section-title.compact{ margin:6px 0 2px; }
+  #repair-view table.billing th, #repair-view table.billing td{ padding:3px 6px; }
+  #repair-view table.billing.compact th, #repair-view table.billing.compact td{ padding:2px 5px; }
+  #repair-view .footer-note{ margin-top:10px; font-size:9px; }
 }
 </style>
 </head>
@@ -1097,9 +1112,18 @@
   <!-- 修理報告書ビュー -->
   <div id="repair-view">
     <div class="rp-toolbar">
-      <h1>GOD-CLEANER 修理報告書</h1>
-      <button id="rp-printBtn">印刷</button>
+  <h1>GOD-CLEANER 修理報告書</h1>
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+    <div style="display:flex;align-items:center;gap:6px;background:#2a2a2a;border:1px solid #444;border-radius:3px;padding:4px 10px;">
+      <span style="font-size:13px;color:#aaa;">🔍</span>
+      <input type="text" id="rp-searchInput" placeholder="お客様名で検索…"
+        style="background:none;border:none;color:#fff;font-size:13px;outline:none;width:160px;"
+        oninput="rpSearchRecords(this.value)">
     </div>
+    <button id="rp-saveBtn" style="background:#27ae60;color:#fff;">💾 保存</button>
+    <button id="rp-printBtn">印刷</button>
+  </div>
+</div>
     <div class="rp-layout">
 
       <!-- 入力フォーム -->
@@ -2286,6 +2310,11 @@ function switchView(view, btn) {
   currentView = view;
   document.querySelectorAll('.view-tab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
+
+  // 修理報告書タブは main-wrap のパディングを消して上部空白をなくす
+  const mainWrap = document.querySelector('.main-wrap');
+  mainWrap.style.padding = (view === 'repair') ? '0' : '';
+
   document.getElementById('staff-view').style.display    = view==='staff'    ? 'grid' : 'none';
   document.getElementById('deadline-view').style.display = view==='deadline' ? 'block': 'none';
   document.getElementById('approval-view').style.display = view==='approval' ? 'block': 'none';
@@ -3161,10 +3190,285 @@ TEL:06-6202-5401`;
     }
   }
 
+/* ─── Firebase 統合 ─── */
+  const FB_URL = 'https://trade-analysis-1474d-default-rtdb.asia-southeast1.firebasedatabase.app/repairReports';
+
+  function rpCollectFormData(){
+    const billingData = [];
+    document.querySelectorAll('#rp-billingRows .billing-card').forEach(card => {
+      const cat   = card.querySelector('.b-cat').value;
+      const sub   = card.querySelector('.b-sub');
+      const subLabel = sub.options[sub.selectedIndex]?.text || '';
+      const free  = card.querySelector('.b-freename').value.trim();
+      const qty   = parseFloat(card.querySelector('.b-qty').value) || 0;
+      const price = parseFloat(card.querySelector('.b-price').value) || 0;
+      if(cat){ billingData.push({ category: cat, subLabel, freeName: free, qty, price, amount: qty * price }); }
+    });
+    const returnItems = {};
+    document.querySelectorAll('.rp-ret-included').forEach(cb => {
+      returnItems[cb.dataset.item] = cb.checked;
+    });
+    const failureSel = document.getElementById('rp-failureContentSel').value;
+    const repairSel  = document.getElementById('rp-repairContentSel').value;
+    const remarksSel = document.getElementById('rp-remarksSel').value;
+    return {
+      mgmtNo:        document.getElementById('rp-mgmtNo').value,
+      returnDate:    document.getElementById('rp-returnDate').value,
+      customerName:  document.getElementById('rp-customerName').value,
+      deviceNo:      document.getElementById('rp-deviceNo').value,
+      purchaseYear:  document.getElementById('rp-purchaseYear').value,
+      purchaseMonth: document.getElementById('rp-purchaseMonth').value,
+      purchaseDay:   document.getElementById('rp-purchaseDay').value,
+      returnItems,
+      failureContent: failureSel === '__other__'
+        ? document.getElementById('rp-failureContent').value
+        : (failureSel || document.getElementById('rp-failureContent').value),
+      repairContent: repairSel === '__other__'
+        ? document.getElementById('rp-repairContent').value
+        : (repairSel || document.getElementById('rp-repairContent').value),
+      remarks: remarksSel === '__other__'
+        ? document.getElementById('rp-remarks').value
+        : (remarksSel || document.getElementById('rp-remarks').value),
+      billing:  billingData,
+      subtotal: parseFloat(document.getElementById('rp-p-subtotal').textContent.replace(/[^0-9.-]/g,'')) || 0,
+      tax:      parseFloat(document.getElementById('rp-p-tax').textContent.replace(/[^0-9.-]/g,'')) || 0,
+      total:    parseFloat(document.getElementById('rp-p-total').textContent.replace(/[^0-9.-]/g,'')) || 0,
+      savedAt: new Date().toISOString(),
+      savedBy: (typeof currentStaff === 'function') ? currentStaff().name : ''
+    };
+  }
+
+  async function rpSaveToFirebase(){
+    const data = rpCollectFormData();
+    if(!data.customerName){ showToast('お客様名を入力してください', 'error'); return; }
+    if(!data.mgmtNo){ showToast('管理番号を入力してください', 'error'); return; }
+    const saveBtn = document.getElementById('rp-saveBtn');
+    saveBtn.disabled = true;
+    saveBtn.textContent = '保存中…';
+    try {
+      const key = 'report_' + String(data.mgmtNo).padStart(5,'0');
+      const res = await fetch(`${FB_URL}/${encodeURIComponent(key)}.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      saveMgmtNoIfNeeded();
+      _rpCacheLoaded = false;
+      showToast(`「${data.customerName}」を保存しました（管理No. ${data.mgmtNo}）`, 'success');
+      mgmtNoInput.value = getNextMgmtNo();
+      mgmtNoInput.dispatchEvent(new Event('input'));
+    } catch(e){
+      console.error('Firebase save error:', e);
+      showToast('保存に失敗しました。通信状況をご確認ください', 'error');
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = '💾 保存';
+    }
+  }
+
+async function rpDeleteRecord(key, name) {
+  openConfirm({
+    title: '修理報告書の削除',
+    msg: `「${name}」（${key.replace('report_','')}）の修理報告書を削除しますか？\nこの操作は取り消せません。`,
+    okLabel: '削除する',
+    okColor: 'var(--urgent)',
+    onOk: async () => {
+      try {
+        const res = await fetch(`${FB_URL}/${encodeURIComponent(key)}.json`, {
+          method: 'DELETE'
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        // キャッシュから即時削除
+        _rpRecordMap.delete(key);
+        // 検索欄に文字が入っていれば再描画
+        const q = document.getElementById('rp-searchInput').value.trim();
+        if (q) rpSearchRecords(q);
+        else rpResultsEl.style.display = 'none';
+        showToast(`「${name}」の報告書を削除しました`, 'error');
+      } catch(e) {
+        console.error('Firebase delete error:', e);
+        showToast('削除に失敗しました。通信状況をご確認ください', 'error');
+      }
+    }
+  });
+}
+
+  /* ─── 検索パネル（ページロード時に1回だけ生成） ─── */
+  const rpToolbar = document.querySelector('#repair-view .rp-toolbar');
+  rpToolbar.style.position = 'relative';
+  const rpResultsEl = document.createElement('div');
+  rpResultsEl.id = 'rp-search-results';
+  rpResultsEl.style.cssText = 'display:none;position:absolute;top:100%;left:0;right:0;background:#1c2330;border:1px solid #3d4f63;border-radius:0 0 6px 6px;max-height:340px;overflow-y:auto;z-index:300;box-shadow:0 8px 24px rgba(0,0,0,0.5)';
+  rpToolbar.appendChild(rpResultsEl);
+
+  const _rpRecordMap = new Map();
+  let _rpCacheLoaded = false;
+  let _rpSearchTimer = null;
+
+  async function rpFetchAllRecords(){
+    const res = await fetch(`${FB_URL}.json`);
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    _rpRecordMap.clear();
+    if(data){
+      Object.entries(data).forEach(([key, val]) => {
+        if(val && val.customerName) _rpRecordMap.set(key, val);
+      });
+    }
+  }
+
+  async function rpSearchRecords(q){
+    rpResultsEl.style.display = 'block';
+    rpResultsEl.innerHTML = '<div style="padding:12px 16px;color:#8899aa;font-size:13px;">検索中…</div>';
+    try {
+      if(!_rpCacheLoaded){
+        await rpFetchAllRecords();
+        _rpCacheLoaded = true;
+      }
+      if(_rpRecordMap.size === 0){
+        rpResultsEl.innerHTML = '<div style="padding:12px 16px;color:#8899aa;font-size:13px;">保存済みデータがありません</div>';
+        return;
+      }
+      const matched = [..._rpRecordMap.entries()]
+        .filter(([,r]) => r.customerName && r.customerName.includes(q))
+        .sort(([,a],[,b]) => (b.savedAt||'').localeCompare(a.savedAt||''));
+      if(!matched.length){
+        rpResultsEl.innerHTML = `<div style="padding:12px 16px;color:#8899aa;font-size:13px;">「${q}」に一致する記録がありません</div>`;
+        return;
+      }
+      rpResultsEl.innerHTML = '';
+      matched.forEach(([, r]) => {
+        const item = document.createElement('div');
+        item.style.cssText = 'padding:10px 16px;border-bottom:1px solid #2a3444;cursor:pointer;';
+        item.innerHTML = `
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:13px;color:#e8edf2;font-weight:500;">${r.customerName}
+        <span style="font-size:11px;color:#8899aa;margin-left:8px;">管理No. ${r.mgmtNo||'-'}</span>
+      </div>
+      <div style="font-size:11px;color:#5a6a7a;margin-top:2px;">
+        ${r.returnDate||''} ／ ${r.deviceNo||''} ／ ¥${(r.total||0).toLocaleString()}
+      </div>
+    </div>
+    <button class="rp-del-btn" data-key="${'report_' + String(r.mgmtNo||'').padStart(5,'0')}" data-name="${r.customerName}"
+      style="flex-shrink:0;background:rgba(231,76,60,0.15);border:1px solid rgba(231,76,60,0.4);
+             color:#ff6b5b;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;white-space:nowrap;"
+      title="この記録を削除">削除</button>
+  </div>`;
+item.addEventListener('mouseenter', () => { item.style.background = '#2a3444'; });
+item.addEventListener('mouseleave', () => { item.style.background = 'none'; });
+// アイテム全体クリックで読み込み（削除ボタンは除く）
+item.addEventListener('click', (e) => {
+  if (e.target.closest('.rp-del-btn')) return;
+  rpLoadRecord(r);
+});
+// 削除ボタンのイベント
+item.querySelector('.rp-del-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const key  = e.currentTarget.dataset.key;
+  const name = e.currentTarget.dataset.name;
+  rpDeleteRecord(key, name);
+});
+        rpResultsEl.appendChild(item);
+      });
+    } catch(e){
+      console.error('Firebase search error:', e);
+      rpResultsEl.innerHTML = `<div style="padding:12px 16px;color:#ff6b5b;font-size:13px;">取得に失敗しました（${e.message}）</div>`;
+      _rpCacheLoaded = false;
+    }
+  }
+
+  function rpLoadRecord(r){
+    document.getElementById('rp-searchInput').value = '';
+    rpResultsEl.style.display = 'none';
+
+    document.getElementById('rp-mgmtNo').value        = r.mgmtNo        || '';
+    document.getElementById('rp-returnDate').value    = r.returnDate    || '';
+    document.getElementById('rp-customerName').value  = r.customerName  || '';
+    document.getElementById('rp-deviceNo').value      = r.deviceNo      || '';
+    document.getElementById('rp-purchaseYear').value  = r.purchaseYear  || '';
+    document.getElementById('rp-purchaseMonth').value = r.purchaseMonth || '';
+    document.getElementById('rp-purchaseDay').value   = r.purchaseDay   || '';
+    ['rp-mgmtNo','rp-returnDate','rp-customerName','rp-deviceNo',
+     'rp-purchaseYear','rp-purchaseMonth','rp-purchaseDay'].forEach(id => {
+      document.getElementById(id).dispatchEvent(new Event('input'));
+      document.getElementById(id).dispatchEvent(new Event('change'));
+    });
+    syncPurchaseDate();
+
+    if(r.returnItems){
+      document.querySelectorAll('.rp-ret-included').forEach(cb => {
+        cb.checked = !!r.returnItems[cb.dataset.item];
+        cb.dispatchEvent(new Event('change'));
+      });
+    }
+
+    function restoreSelect(selId, taId, value){
+      const sel = document.getElementById(selId);
+      const ta  = document.getElementById(taId);
+      const opt = Array.from(sel.options).find(o => o.value === value && o.value !== '__other__' && o.value !== '');
+      if(opt)       { sel.value = value;      ta.disabled = true;  ta.value = value; }
+      else if(value){ sel.value = '__other__'; ta.disabled = false; ta.value = value; }
+      else          { sel.value = '';          ta.disabled = true;  ta.value = ''; }
+      ta.dispatchEvent(new Event('input'));
+    }
+    restoreSelect('rp-failureContentSel', 'rp-failureContent', r.failureContent || '');
+    restoreSelect('rp-repairContentSel',  'rp-repairContent',  r.repairContent  || '');
+    restoreSelect('rp-remarksSel',        'rp-remarks',        r.remarks        || '');
+
+    document.querySelectorAll('#rp-billingRows .billing-card').forEach((card, i) => {
+      const rb      = (r.billing || [])[i];
+      const catSel  = card.querySelector('.b-cat');
+      const subSel  = card.querySelector('.b-sub');
+      const freeName= card.querySelector('.b-freename');
+      const priceIn = card.querySelector('.b-price');
+      const qtyIn   = card.querySelector('.b-qty');
+      if(rb && rb.category){
+        catSel.value = rb.category;
+        catSel.dispatchEvent(new Event('change'));
+        setTimeout(() => {
+          const idx = Array.from(subSel.options).findIndex(o => o.text.startsWith(rb.subLabel||''));
+          if(idx >= 0) subSel.selectedIndex = idx;
+          subSel.dispatchEvent(new Event('change'));
+          if(rb.freeName) freeName.value = rb.freeName;
+          priceIn.value = rb.price || 0;
+          qtyIn.value   = rb.qty   || 1;
+          recalcBilling();
+        }, 0);
+      } else {
+        catSel.value = '';
+        subSel.innerHTML = '<option value="">-</option>';
+        subSel.disabled  = true;
+        freeName.disabled = true;
+        freeName.value   = '';
+        priceIn.value    = 0;
+        qtyIn.value      = 1;
+        recalcBilling();
+      }
+    });
+    showToast(`「${r.customerName}」を読み込みました`, 'info');
+  }
+
+  /* ─── イベントリスナー ─── */
+  document.getElementById('rp-searchInput').addEventListener('input', function(){
+    clearTimeout(_rpSearchTimer);
+    const q = this.value.trim();
+    if(!q){ rpResultsEl.style.display = 'none'; return; }
+    _rpSearchTimer = setTimeout(() => rpSearchRecords(q), 250);
+  });
+
+  document.addEventListener('click', e => {
+    if(!rpToolbar.contains(e.target)) rpResultsEl.style.display = 'none';
+  });
+
+  document.getElementById('rp-saveBtn').addEventListener('click', () => { rpSaveToFirebase(); });
+
   document.getElementById('rp-printBtn').addEventListener('click', () => {
     saveMgmtNoIfNeeded();
     window.print();
   });
+
 })();
 </script>
 </body>
